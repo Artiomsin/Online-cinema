@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { movies, movieGenres, genres, movieActors, actors } from '../database/schema';
 import { eq, ilike, inArray } from 'drizzle-orm';
 import { CreateMovieDto } from '../dto/create-movie.dto';
@@ -75,5 +75,20 @@ async getActorsForMovie(movieId: number) {
     };
   });
 }
+
+async filterMoviesByYear(year: number) {
+    // базовая валидация диапазона
+    if (year < 1888 || year > new Date().getFullYear()) {
+      throw new BadRequestException('Некорректный год выпуска');
+    }
+
+    // Явно выполняем запрос и возвращаем строки
+    const rows = await this.db
+      .select()
+      .from(movies)
+      .where(eq(movies.releaseYear, year));
+
+    return rows;
+  }
 
 }

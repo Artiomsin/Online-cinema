@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Delete, Param, Body, Query } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Param, Body, Query, ParseIntPipe } from '@nestjs/common';
 import { MoviesService } from '../services/movies.service';
 import { CreateMovieDto } from '../dto/create-movie.dto';
 import { UpdateMovieDto } from '../dto/update-movie.dto';
@@ -12,6 +12,11 @@ export class MoviesController {
     return this.moviesService.searchMoviesByTitle(title);
   }
   
+@Get('year')
+  filterByYear(@Query('year', ParseIntPipe) year: number) {
+    return this.moviesService.filterMoviesByYear(year);
+  }
+
   @Post()
   create(@Body() dto: CreateMovieDto) {
     return this.moviesService.createMovie(dto);
@@ -36,9 +41,7 @@ export class MoviesController {
   findAll() {
     return this.moviesService.findAllMovies();
   }
-
   
-
   @Get('genre/:genreId')
   filterByGenre(@Param('genreId') genreId: number) {
     return this.moviesService.filterMoviesByGenre(genreId);
@@ -58,5 +61,9 @@ getGenres(@Param('id') id: number) {
 getActors(@Param('id') id: number) {
   return this.moviesService.getActorsForMovie(id);
 }
+
+
+
+
 
 }

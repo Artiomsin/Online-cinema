@@ -4,13 +4,17 @@ import { useRouter } from 'vue-router'
 
 const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000'
 const movies = ref<any[]>([])
+const genres = ref<any[]>([])        // список жанров
+const selectedGenre = ref('')        // выбранный жанр
 const loading = ref(true)
 const error = ref('')
 const searchQuery = ref('')
 const router = useRouter()
+const selectedYear = ref('')
+
 
 onMounted(async () => {
-  await loadAllMovies()
+  await Promise.all([loadAllMovies(), loadGenres()])
 })
 
 async function loadAllMovies() {
@@ -25,6 +29,36 @@ async function loadAllMovies() {
     loading.value = false
   }
 }
+
+async function loadGenres() {
+  try {
+    const res = await fetch(API_BASE + '/genres', { credentials: 'include' })
+    if (!res.ok) throw new Error('Ошибка загрузки жанров')
+    genres.value = await res.json()
+  } catch (e: any) {
+    error.value = e.message
+  }
+}
+
+
+async function filterByYear(yearStr: string) {
+  const year = Number(yearStr)
+  if (!yearStr || Number.isNaN(year)) {
+    await loadAllMovies()
+    return
+  }
+  try {
+    loading.value = true
+    const res = await fetch(`${API_BASE}/movies/year?year=${year}`, { credentials: 'include' })
+    if (!res.ok) throw new Error('Ошибка фильтрации по году')
+    movies.value = await res.json()
+  } catch (e: any) {
+    error.value = e.message
+  } finally {
+    loading.value = false
+  }
+}
+
 
 async function searchMovies(query: string) {
   if (!query.trim()) {
@@ -43,6 +77,23 @@ async function searchMovies(query: string) {
   }
 }
 
+async function filterByGenre(genreId: string) {
+  if (!genreId) {
+    await loadAllMovies()
+    return
+  }
+  try {
+    loading.value = true
+    const res = await fetch(`${API_BASE}/movies/genre/${genreId}`, { credentials: 'include' })
+    if (!res.ok) throw new Error('Ошибка фильтрации')
+    movies.value = await res.json()
+  } catch (e: any) {
+    error.value = e.message
+  } finally {
+    loading.value = false
+  }
+}
+
 // Автопоиск при вводе
 watch(searchQuery, (newVal) => {
   if (newVal.length >= 1) {
@@ -50,6 +101,14 @@ watch(searchQuery, (newVal) => {
   } else {
     loadAllMovies()
   }
+})
+
+watch(selectedYear, (newVal) => filterByYear(newVal))
+
+
+// Автофильтр при выборе жанра
+watch(selectedGenre, (newVal) => {
+  filterByGenre(newVal)
 })
 
 function openMovie(id: number) {
@@ -71,6 +130,29 @@ function openMovie(id: number) {
       />
     </div>
 
+
+    <!-- Фильтр по году -->
+    <div class="year-filter">
+      <input
+        v-model="selectedYear"
+        type="number"
+        min="1888"
+        :max="new Date().getFullYear()"
+        placeholder="Год выпуска"
+        class="year-input"
+      />
+    </div>
+
+    <!-- Фильтр по жанрам -->
+    <div class="genre-filter">
+      <select v-model="selectedGenre" class="genre-select">
+        <option value="">Все жанры</option>
+        <option v-for="g in genres" :key="g.id" :value="g.id">
+          {{ g.name }}
+        </option>
+      </select>
+    </div>
+
     <div v-if="loading" class="status">Загрузка...</div>
     <div v-if="error" class="error">{{ error }}</div>
 
@@ -88,7 +170,36 @@ function openMovie(id: number) {
 </template>
 
 
+
 <style scoped>
+
+.year-filter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  max-width: 600px;
+}
+
+.year-input {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 1rem;
+  background-color: #1e293b;
+  color: #e6eef8;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.year-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #22d3ee;
+}
+
+
+
 .catalog-wrap {
   min-height: 100vh;
   padding: 2rem;
@@ -110,7 +221,7 @@ function openMovie(id: number) {
 .search-bar {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   width: 100%;
   max-width: 600px;
 }
@@ -119,18 +230,10 @@ function openMovie(id: number) {
   flex: 1;
   padding: 0.7rem 1rem;
   border-radius: 8px;
+  background-color: #1e293b; /* тёмный фон в стиле каталога */
+  color: #e6eef8;  
   border: none;
   font-size: 1rem;
-}
-
-.search-btn {
-  padding: 0.7rem 1.2rem;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  background: linear-gradient(90deg, #22d3ee, #0ea5e9);
-  color: #041024;
 }
 
 .status {
@@ -190,4 +293,37 @@ function openMovie(id: number) {
   font-size: 0.85rem;
   color: #94a3b8;
 }
+
+.genre-filter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  max-width: 600px;
+}
+
+.genre-select {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 1rem;
+  background-color: #1e293b; /* тёмный фон в стиле каталога */
+  color: #e6eef8;            /* светлый текст */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.genre-select:hover {
+  background-color: #334155; /* чуть светлее при наведении */
+}
+
+.genre-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #22d3ee; /* акцент при фокусе */
+}
+
+
 </style>

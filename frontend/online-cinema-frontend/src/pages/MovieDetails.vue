@@ -172,12 +172,12 @@ function play(url: string) {
   currentVideo.value = url
 }
 
-// Проверка: YouTube или нет
+
 function isYouTubeUrl(url: string): boolean {
   return url.includes('youtube.com') || url.includes('youtu.be')
 }
 
-// Извлечение ID из YouTube-ссылки
+
 function extractYouTubeId(url: string): string | null {
   const match = url.match(/(?:youtu\.be\/|v=)([^&]+)/)
   return match && match[1] ? match[1] : null
@@ -194,8 +194,10 @@ function openMovie(id: number) {
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="movie" class="details-card">
+      
       <img :src="movie.posterUrl" alt="Poster" class="poster" />
 
+     
       <div class="info">
         <h1>{{ movie.title }}</h1>
 
@@ -232,30 +234,32 @@ function openMovie(id: number) {
             </li>
           </ul>
         </div>
+      </div>
 
-         
+      
+      <div class="details-body">
+       
+        <div class="watch">
+          <h3>Смотреть онлайн:</h3>
+          <div class="buttons">
+            <button v-if="movie.videoUrl480" class="btn quality-480" @click="play(movie.videoUrl480)">480p</button>
+            <button v-if="movie.videoUrl720" class="btn quality-720" @click="play(movie.videoUrl720)">720p</button>
+            <button v-if="movie.videoUrl1080" class="btn quality-1080" @click="play(movie.videoUrl1080)">1080p</button>
+          </div>
 
-          <div class="watch">
-  <h3>Смотреть онлайн:</h3>
-  <div class="buttons">
-    <button v-if="movie.videoUrl480" class="btn quality-480" @click="play(movie.videoUrl480)">480p</button>
-    <button v-if="movie.videoUrl720" class="btn quality-720" @click="play(movie.videoUrl720)">720p</button>
-    <button v-if="movie.videoUrl1080" class="btn quality-1080" @click="play(movie.videoUrl1080)">1080p</button>
-  </div>
-
-  <div v-if="currentVideo && isYouTubeUrl(currentVideo)" class="player">
-    <iframe
-      class="iframe-player"
-      :src="`https://www.youtube.com/embed/${extractYouTubeId(currentVideo)}`"
-      frameborder="0"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-      allowfullscreen
-    ></iframe>
-  </div>
-</div>
+          
+          <div v-if="currentVideo && isYouTubeUrl(currentVideo)" class="player">
+            <iframe
+              class="iframe-player"
+              :src="`https://www.youtube.com/embed/${extractYouTubeId(currentVideo)}`"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </div>
 
         
-
         <div class="comments">
           <h3>Комментарии</h3>
           <div v-if="averageRating !== null" class="avg-rating">
@@ -273,25 +277,24 @@ function openMovie(id: number) {
           <div v-else class="no-comments">Комментариев пока нет</div>
 
           <div class="add-comment">
-  <h4>Добавить комментарий</h4>
-  <textarea v-model="newComment" placeholder="Ваш комментарий"></textarea>
+            <h4>Добавить комментарий</h4>
+            <textarea v-model="newComment" placeholder="Ваш комментарий"></textarea>
 
-  <!-- Звёздный рейтинг -->
-  <div class="star-rating">
-    <span
-      v-for="star in 5"
-      :key="star"
-      class="star"
-      :class="{ active: newRating !== null && star <= newRating }"
-      @click="newRating = star"
-    >★</span>
-  </div>
+            <div class="star-rating">
+              <span
+                v-for="star in 5"
+                :key="star"
+                class="star"
+                :class="{ active: newRating !== null && star <= newRating }"
+                @click="newRating = star"
+              >★</span>
+            </div>
 
-  <button @click="addComment(movie.id)">Отправить</button>
-</div>
-</div>
+            <button @click="addComment(movie.id)">Отправить</button>
+          </div>
+        </div>
 
-          <!-- новые рекомендации -->
+        
         <div class="recommendations">
           <h3>На основе избранного</h3>
           <div v-if="recommendedByFavorites.length" class="similar-grid">
@@ -321,7 +324,7 @@ function openMovie(id: number) {
           <div v-else class="no-similar">Нет рекомендаций</div>
         </div>
 
-        <!-- старый блок похожих фильмов -->
+        
         <div class="similar">
           <h3>Похожие фильмы</h3>
           <div v-if="similarMovies.length" class="similar-grid">
@@ -332,11 +335,11 @@ function openMovie(id: number) {
           </div>
           <div v-else class="no-similar">Нет рекомендаций</div>
         </div>
-
       </div>
     </div>
   </div>
 </template>
+
 
 
 <style scoped>
@@ -346,26 +349,26 @@ function openMovie(id: number) {
   background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
   color: #e6eef8;
 }
-.status, .error {
-  font-size: 1.1rem;
-  margin-bottom: 1rem;
-}
-.error {
-  color: var(--danger);
-}
+.status, .error { font-size: 1.1rem; margin-bottom: 1rem; }
+.error { color: var(--danger); }
+
 .details-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  grid-template-areas:
+    "poster info"
+    "body   body";
   gap: 2rem;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: start;
 }
 .poster {
+  grid-area: poster;
   width: 300px;
   border-radius: var(--radius);
   box-shadow: 0 8px 24px rgba(0,0,0,0.6);
 }
 .info {
-  flex: 1;
+  grid-area: info;
   min-width: 280px;
 }
 h1 {
@@ -398,6 +401,10 @@ h1 {
 }
 .actors li {
   margin-bottom: .4rem;
+}
+.details-body {
+  grid-area: body;
+  width: 100%;
 }
 .watch {
   margin-top: 2rem;

@@ -32,6 +32,7 @@ function doLogout() {
         <router-link v-if="auth" to="/catalog" class="link">Каталог фильмов</router-link>
         <router-link v-if="!auth" to="/login" class="link">Вход</router-link>
         <router-link v-if="!auth" to="/register" class="link">Регистрация</router-link>
+         <router-link v-if="!auth" to="/admin" class="link">Админ понель</router-link>
         <button v-if="auth" class="btn-logout" @click="doLogout">Выйти</button>
       </nav>
     </header>
