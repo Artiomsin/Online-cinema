@@ -36,16 +36,16 @@ function openMovie(id: number) {
 
 <template>
   <div class="actor-wrap">
-    <div v-if="loading" class="status">Загрузка...</div>
+    <div v-if="loading" class="status">Loading...</div>
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="actor" class="actor-card">
       <h1>{{ actor.firstName }} {{ actor.lastName }}</h1>
-      <p><strong>Дата рождения:</strong> {{ actor.birthDate }}</p>
+      <p><strong>Birth Date:</strong> {{ actor.birthDate }}</p>
       <p class="bio">{{ actor.biography }}</p>
 
       <div v-if="movies.length" class="movies">
-        <h3>Фильмы:</h3>
+        <h3>Movies:</h3>
         <ul>
           <li v-for="m in movies" :key="m.id" @click="openMovie(m.id)" class="movie-link">
             {{ m.title }} ({{ m.releaseYear }}) — <em>{{ m.characterName }}</em>

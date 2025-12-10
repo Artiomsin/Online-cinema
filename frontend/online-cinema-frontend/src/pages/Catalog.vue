@@ -21,7 +21,7 @@ async function loadAllMovies() {
   try {
     loading.value = true
     const res = await fetch(API_BASE + '/movies', { credentials: 'include' })
-    if (!res.ok) throw new Error('Ошибка загрузки фильмов')
+    if (!res.ok) throw new Error('Error loading movies')
     movies.value = await res.json()
   } catch (e: any) {
     error.value = e.message
@@ -33,7 +33,7 @@ async function loadAllMovies() {
 async function loadGenres() {
   try {
     const res = await fetch(API_BASE + '/genres', { credentials: 'include' })
-    if (!res.ok) throw new Error('Ошибка загрузки жанров')
+    if (!res.ok) throw new Error('Error loading genres')
     genres.value = await res.json()
   } catch (e: any) {
     error.value = e.message
@@ -50,7 +50,7 @@ async function filterByYear(yearStr: string) {
   try {
     loading.value = true
     const res = await fetch(`${API_BASE}/movies/year?year=${year}`, { credentials: 'include' })
-    if (!res.ok) throw new Error('Ошибка фильтрации по году')
+    if (!res.ok) throw new Error('Error filtering by year')
     movies.value = await res.json()
   } catch (e: any) {
     error.value = e.message
@@ -68,7 +68,7 @@ async function searchMovies(query: string) {
   try {
     loading.value = true
     const res = await fetch(`${API_BASE}/movies/search?title=${encodeURIComponent(query)}`, { credentials: 'include' })
-    if (!res.ok) throw new Error('Ошибка поиска')
+    if (!res.ok) throw new Error('Error search')
     movies.value = await res.json()
   } catch (e: any) {
     error.value = e.message
@@ -85,7 +85,7 @@ async function filterByGenre(genreId: string) {
   try {
     loading.value = true
     const res = await fetch(`${API_BASE}/movies/genre/${genreId}`, { credentials: 'include' })
-    if (!res.ok) throw new Error('Ошибка фильтрации')
+    if (!res.ok) throw new Error('Error filtering')
     movies.value = await res.json()
   } catch (e: any) {
     error.value = e.message
@@ -118,14 +118,14 @@ function openMovie(id: number) {
 
 <template>
   <div class="catalog-wrap">
-    <h1 class="heading">🎬 Каталог фильмов</h1>
+    <h1 class="heading">🎬 Catalog movies</h1>
 
     <!-- Поле поиска -->
     <div class="search-bar">
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="Введите название фильма..."
+        placeholder="Enter movie title..."
         class="search-input"
       />
     </div>
@@ -138,7 +138,7 @@ function openMovie(id: number) {
         type="number"
         min="1888"
         :max="new Date().getFullYear()"
-        placeholder="Год выпуска"
+        placeholder="Release Year"
         class="year-input"
       />
     </div>
@@ -146,14 +146,14 @@ function openMovie(id: number) {
     <!-- Фильтр по жанрам -->
     <div class="genre-filter">
       <select v-model="selectedGenre" class="genre-select">
-        <option value="">Все жанры</option>
+        <option value="">All Genres</option>
         <option v-for="g in genres" :key="g.id" :value="g.id">
           {{ g.name }}
         </option>
       </select>
     </div>
 
-    <div v-if="loading" class="status">Загрузка...</div>
+    <div v-if="loading" class="status">Loading...</div>
     <div v-if="error" class="error">{{ error }}</div>
 
     <div class="grid">
@@ -164,7 +164,7 @@ function openMovie(id: number) {
     </div>
 
     <footer class="footer">
-      © 2025 OnlineCinema. Все права защищены.
+      © 2025 OnlineCinema. All rights reserved.
     </footer>
   </div>
 </template>

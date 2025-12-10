@@ -34,13 +34,13 @@ const submit = async () => {
     })
 
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data?.message || 'Ошибка регистрации')
+    if (!res.ok) throw new Error(data?.message || 'Registration error')
 
     auth.value = true
     await fetchProfile()
     router.push({ path: '/', query: { success: 'registered' } })
   } catch (e: any) {
-    error.value = e.message || 'Ошибка регистрации'
+    error.value = e.message || 'Registration error'
   } finally {
     loading.value = false
   }
@@ -50,19 +50,19 @@ const submit = async () => {
 <template>
   <div class="auth-wrap">
     <form class="auth-card" @submit.prevent="submit">
-      <h2>Регистрация</h2>
-      <p class="muted">Создайте аккаунт для доступа</p>
+      <h2>Register</h2>
+      <p class="muted">Create an account to access</p>
 
       <label class="field">
-        <input v-model="login" type="text" placeholder="Логин" required />
+        <input v-model="login" type="text" placeholder="Username" required />
       </label>
 
       <label class="field">
-        <input v-model="firstName" type="text" placeholder="Имя" required />
+        <input v-model="firstName" type="text" placeholder="First Name" required />
       </label>
 
       <label class="field">
-        <input v-model="lastName" type="text" placeholder="Фамилия" required />
+        <input v-model="lastName" type="text" placeholder="Last Name" required />
       </label>
 
       <label class="field">
@@ -70,12 +70,12 @@ const submit = async () => {
       </label>
 
       <label class="field">
-        <input v-model="password" type="password" placeholder="Пароль" required minlength="6" />
+        <input v-model="password" type="password" placeholder="Password" required minlength="6" />
       </label>
 
       <div v-if="error" class="error">{{ error }}</div>
 
-      <button class="btn" :disabled="loading">{{ loading ? 'Сохранение...' : 'Зарегистрироваться' }}</button>
+      <button class="btn" :disabled="loading">{{ loading ? 'Saving...' : 'Register' }}</button>
     </form>
   </div>
 </template>

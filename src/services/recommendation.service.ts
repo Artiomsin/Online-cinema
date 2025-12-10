@@ -44,8 +44,7 @@ export class RecommendationService {
       .groupBy(movies.id);
   }
 
-  // 3. Новые фильмы в любимых жанрах
-  async notifyNewMoviesInFavoriteGenres(userId: number) {
+ async notifyNewMoviesInFavoriteGenres(userId: number) {
     const favGenreIds: number[] = await this.db
       .select({ genreId: movieGenres.genreId })
       .from(favorites)
@@ -68,7 +67,7 @@ export class RecommendationService {
       .groupBy(movies.id);
   }
 
-  // 4. Похожие фильмы
+
   async getSimilarMovies(movieId: number) {
     const genres: number[] = await this.db
       .select({ genreId: movieGenres.genreId })

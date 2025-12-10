@@ -1,38 +1,56 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
-import { subscriptions } from '../database/models/Subscription';
-import { eq } from 'drizzle-orm';
 import { CreateSubscriptionDto } from '../dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from '../dto/update-subscription.dto';
+import { sql } from 'drizzle-orm';
 
 @Injectable()
 export class SubscriptionService {
   constructor(@Inject('DB') private readonly db: any) {}
 
   async createSubscription(dto: CreateSubscriptionDto) {
-    const [subscription] = await this.db.insert(subscriptions).values(dto).returning();
-    return subscription;
+    const result = await this.db.execute(sql`
+      INSERT INTO "Subscription"."subscriptions" (title, price, period)
+      VALUES (${dto.title}, ${dto.price}, ${dto.period})
+      RETURNING id, title, price, period;
+    `);
+    return result.rows[0];
   }
 
   async updateSubscription(id: number, dto: UpdateSubscriptionDto) {
-    const [subscription] = await this.db
-      .update(subscriptions)
-      .set(dto)
-      .where(eq(subscriptions.id, id))
-      .returning();
-    if (!subscription) throw new NotFoundException(`Subscription ${id} not found`);
-    return subscription;
+    const result = await this.db.execute(sql`
+      UPDATE "Subscription"."subscriptions"
+      SET 
+        title  = COALESCE(${dto.title}, title),
+        price  = COALESCE(${dto.price}, price),
+        period = COALESCE(${dto.period}, period)
+      WHERE id = ${id}
+      RETURNING id, title, price, period;
+    `);
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`Subscription ${id} not found`);
+    }
+    return result.rows[0];
   }
 
   async deleteSubscription(id: number) {
-    const [subscription] = await this.db
-      .delete(subscriptions)
-      .where(eq(subscriptions.id, id))
-      .returning();
-    if (!subscription) throw new NotFoundException(`Subscription ${id} not found`);
-    return subscription;
+    const result = await this.db.execute(sql`
+      DELETE FROM "Subscription"."subscriptions"
+      WHERE id = ${id}
+      RETURNING id, title, price, period;
+    `);
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`Subscription ${id} not found`);
+    }
+    return result.rows[0];
   }
 
   async findAllSubscriptions() {
-    return this.db.select().from(subscriptions);
+    const result = await this.db.execute(sql`
+      SELECT id, title, price, period
+      FROM "Subscription"."subscriptions";
+    `);
+    return result.rows;
   }
 }

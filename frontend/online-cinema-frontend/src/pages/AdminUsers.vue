@@ -206,28 +206,28 @@ onMounted(() => { loadUsers(); loadMovies(); })
 
 <template>
   <div class="admin-card">
-    <h1>Админ: управление пользователями</h1>
+    <h1>Admin: User Management</h1>
 
     <section class="split">
       <div class="panel form-panel">
-        <h2>{{ editingId ? 'Редактирование пользователя' : 'Создать пользователя' }}</h2>
+        <h2>{{ editingId ? 'Edit User' : 'Create User' }}</h2>
         <form @submit.prevent="submit" class="form">
           <label>Login<input v-model="form.login" required /></label>
           <label>Email<input type="email" v-model="form.email" required /></label>
           <label>First name<input v-model="form.firstName" required /></label>
           <label>Last name<input v-model="form.lastName" required /></label>
-          <label>Password<input v-model="form.password" :required="!editingId" type="password" placeholder="Оставьте пустым для сохранения"/></label>
+          <label>Password<input v-model="form.password" :required="!editingId" type="password" placeholder="Leave empty to keep current"/></label>
           <div style="display:flex;gap:.5rem;margin-top:.6rem">
-            <button class="btn" type="submit">{{ editingId ? 'Сохранить' : 'Создать' }}</button>
-            <button type="button" class="btn ghost" @click="resetForm">Сбросить</button>
+            <button class="btn" type="submit">{{ editingId ? 'Save' : 'Create' }}</button>
+            <button type="button" class="btn ghost" @click="resetForm">Reset</button>
           </div>
         </form>
         <div v-if="error" class="error">{{ error }}</div>
       </div>
 
       <div class="panel table-panel">
-        <h2>Список пользователей</h2>
-        <div v-if="loading">Загрузка...</div>
+        <h2>User List</h2>
+        <div v-if="loading">Loading...</div>
         <div v-else class="users-table-wrap">
           <table class="users-table">
           <thead>
@@ -235,9 +235,9 @@ onMounted(() => { loadUsers(); loadMovies(); })
               <th class="id-col">ID</th>
               <th class="login-col">Login</th>
               <th class="email-col">Email</th>
-              <th>Имя</th>
-              <th>Фамилия</th>
-              <th class="actions-col">Действия</th>
+              <th>First Name</th>
+              <th>Last Name</th>
+              <th class="actions-col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -248,8 +248,8 @@ onMounted(() => { loadUsers(); loadMovies(); })
               <td>{{ u.firstName }}</td>
               <td>{{ u.lastName }}</td>
               <td class="actions-col actions">
-                <button class="btn small" @click="editUser(u)">Ред.</button>
-                <button class="btn small danger" @click="removeUser(u.id)">Удал.</button>
+                <button class="btn small" @click="editUser(u)">Edit</button>
+                <button class="btn small danger" @click="removeUser(u.id)">Delete</button>
               </td>
             </tr>
           </tbody>
@@ -261,34 +261,34 @@ onMounted(() => { loadUsers(); loadMovies(); })
     <!-- Movies management -->
     <section class="movies-section" style="margin-top:2rem">
       <div class="admin-card" style="padding:1rem">
-        <h2 style="margin-bottom:1rem">Управление фильмами</h2>
+        <h2 style="margin-bottom:1rem">Movie Management</h2>
         <div class="split">
           <div class="panel form-panel">
-            <h3>{{ editingMovieId ? 'Редактирование фильма' : 'Создать фильм' }}</h3>
+            <h3>{{ editingMovieId ? 'Edit Movie' : 'Create Movie' }}</h3>
             <form @submit.prevent="submitMovie" class="form">
               <label>Title<input v-model="movieForm.title" required /></label>
-              <label>Release year<input v-model="movieForm.releaseYear" type="number" required /></label>
-              <label>Duration (мин.)<input v-model="movieForm.duration" type="number" required /></label>
-              <label>Age rating<input v-model="movieForm.ageRating" type="number" required /></label>
-              <label>Subscription level<input v-model="movieForm.subscriptionLevel" required placeholder="free|basic|premium"/></label>
-              <label>Original language<input v-model="movieForm.originalLanguage" required /></label>
-              <label>Production country<input v-model="movieForm.productionCountry" required /></label>
-              <label>Description<textarea v-model="movieForm.description" rows="4" placeholder="Краткое описание фильма"></textarea></label>
+              <label>Release Year<input v-model="movieForm.releaseYear" type="number" required /></label>
+              <label>Duration (min)<input v-model="movieForm.duration" type="number" required /></label>
+              <label>Age Rating<input v-model="movieForm.ageRating" type="number" required /></label>
+              <label>Subscription Level<input v-model="movieForm.subscriptionLevel" required placeholder="free|basic|premium"/></label>
+              <label>Original Language<input v-model="movieForm.originalLanguage" required /></label>
+              <label>Production Country<input v-model="movieForm.productionCountry" required /></label>
+              <label>Description<textarea v-model="movieForm.description" rows="4" placeholder="Short movie description"></textarea></label>
               <label>Poster URL<input v-model="movieForm.posterUrl" /></label>
               <div v-if="movieForm.posterUrl" class="poster-preview"><img :src="movieForm.posterUrl" alt="poster"/></div>
               <label>Video URL 480<input v-model="movieForm.videoUrl480" /></label>
               <label>Video URL 720<input v-model="movieForm.videoUrl720" /></label>
               <label>Video URL 1080<input v-model="movieForm.videoUrl1080" /></label>
               <div class="controls">
-                <button class="btn" type="submit">{{ editingMovieId ? 'Сохранить' : 'Создать' }}</button>
-                <button type="button" class="btn ghost" @click="resetMovieForm">Сбросить</button>
+                <button class="btn" type="submit">{{ editingMovieId ? 'Save' : 'Create' }}</button>
+                <button type="button" class="btn ghost" @click="resetMovieForm">Reset</button>
               </div>
             </form>
           </div>
 
           <div class="panel table-panel">
-            <h3>Список фильмов</h3>
-            <div v-if="loadingMovies">Загрузка...</div>
+            <h3>Movie List</h3>
+            <div v-if="loadingMovies">Loading...</div>
             <div v-else class="users-table-wrap">
               <table class="users-table">
                 <thead>
@@ -299,14 +299,14 @@ onMounted(() => { loadUsers(); loadMovies(); })
                     <th class="duration-col">Duration</th>
                     <th class="age-col">Age</th>
                     <th class="sub-col">Subscription</th>
-                    <th class="lang-col">Lang</th>
+                    <th class="lang-col">Language</th>
                     <th class="country-col">Country</th>
                     <th class="desc-col">Description</th>
                     <th class="video-col">480</th>
                     <th class="video-col">720</th>
                     <th class="video-col">1080</th>
                     <th class="poster-col">Poster</th>
-                    <th class="actions-col">Действия</th>
+                    <th class="actions-col">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -325,8 +325,8 @@ onMounted(() => { loadUsers(); loadMovies(); })
                     <td class="video-col"><a v-if="m.videoUrl1080" :href="m.videoUrl1080" target="_blank" rel="noreferrer">1080</a></td>
                     <td class="poster-col"> <img v-if="m.posterUrl" :src="m.posterUrl" class="small-thumb" alt="poster"/> </td>
                     <td class="actions-col actions">
-                      <button class="btn small" @click="editMovie(m)">Ред.</button>
-                      <button class="btn small danger" @click="removeMovie(m.id)">Удал.</button>
+                      <button class="btn small" @click="editMovie(m)">Edit</button>
+                      <button class="btn small danger" @click="removeMovie(m.id)">Delete</button>
                     </td>
                   </tr>
                 </tbody>
@@ -338,6 +338,7 @@ onMounted(() => { loadUsers(); loadMovies(); })
     </section>
   </div>
 </template>
+
 
 <style scoped>
 :root {

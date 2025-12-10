@@ -1,9 +1,8 @@
-import { IsInt, IsString } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString } from 'class-validator';
 
 export class UpdateSubscriptionStatusDto {
-  @IsInt()
-  userSubscriptionId: number;
-
+  @ApiProperty({ example: 'inactive', description: 'Новый статус подписки' })
   @IsString()
-  status: string; // "active" | "expired"
+  status: string;
 }

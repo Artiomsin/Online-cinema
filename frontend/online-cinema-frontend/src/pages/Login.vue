@@ -25,13 +25,13 @@ const submit = async () => {
     })
 
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data?.message || 'Ошибка входа')
+    if (!res.ok) throw new Error(data?.message || 'Login error')
 
     auth.value = true
     await fetchProfile()
     router.push({ path: '/', query: { success: 'authenticated' } })
   } catch (e: any) {
-    error.value = e.message || 'Ошибка входа'
+    error.value = e.message || 'Login error'
   } finally {
     loading.value = false
   }
@@ -41,20 +41,20 @@ const submit = async () => {
 <template>
   <div class="auth-wrap">
     <form class="auth-card" @submit.prevent="submit">
-      <h2>Вход</h2>
-      <p class="muted">Введите свои данные для входа</p>
+      <h2>Login</h2>
+      <p class="muted">Enter your login details</p>
 
       <label class="field">
-        <input v-model="login" type="text" placeholder="Логин" required />
+        <input v-model="login" type="text" placeholder="Username" required />
       </label>
 
       <label class="field">
-        <input v-model="password" type="password" placeholder="Пароль" required />
+        <input v-model="password" type="password" placeholder="Password" required />
       </label>
 
       <div v-if="error" class="error">{{ error }}</div>
 
-      <button class="btn" :disabled="loading">{{ loading ? 'Выполняется...' : 'Войти' }}</button>
+      <button class="btn" :disabled="loading">{{ loading ? 'Processing...' : 'Login' }}</button>
     </form>
   </div>
 </template>

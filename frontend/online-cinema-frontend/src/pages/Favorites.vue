@@ -12,10 +12,10 @@ async function loadFavorites() {
   try {
     loading.value = true
     const res = await fetch(`${API_BASE}/favorites/me`, { credentials: 'include' })
-    if (!res.ok) throw new Error('Ошибка загрузки избранного')
+    if (!res.ok) throw new Error('Error loading favorites')
     const favs = await res.json()
 
-    // подтягиваем данные фильма по id
+    // fetch movie data by id
     const moviesData = await Promise.all(
       favs.map(async (f: any) => {
         const movieRes = await fetch(`${API_BASE}/movies/${f.movieId}`, { credentials: 'include' })
@@ -50,8 +50,8 @@ function openMovie(id: number) {
 
 <template>
   <div class="favorites-page">
-    <h1>⭐ Мои любимые фильмы</h1>
-    <div v-if="loading" class="status">Загрузка...</div>
+    <h1>⭐ My Favorite Movies</h1>
+    <div v-if="loading" class="status">Loading...</div>
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="favorites.length" class="grid">
@@ -59,11 +59,11 @@ function openMovie(id: number) {
         <img :src="f.posterUrl" alt="Poster" class="poster" />
         <div class="info">
           <div class="title">{{ f.title }}</div>
-          <div class="subscription">Подписка: {{ f.subscriptionLevel }}</div>
+          <div class="subscription">Subscription: {{ f.subscriptionLevel }}</div>
         </div>
       </div>
     </div>
-    <div v-else class="no-favorites">У вас пока нет любимых фильмов</div>
+    <div v-else class="no-favorites">You don’t have any favorite movies yet</div>
   </div>
 </template>
 

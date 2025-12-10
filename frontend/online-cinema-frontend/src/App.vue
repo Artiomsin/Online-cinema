@@ -26,16 +26,17 @@ function doLogout() {
         <div class="brand">OnlineCinema</div>
       </div>
       <nav class="nav">
-        <router-link to="/" class="link">Главная</router-link>
-        <router-link v-if="auth" to="/subscriptions" class="link">Подписки</router-link>
-         <router-link v-if="auth" to="/favorites" class="link">Избранные</router-link>
-        <router-link v-if="auth" to="/catalog" class="link">Каталог фильмов</router-link>
-        <router-link v-if="!auth" to="/login" class="link">Вход</router-link>
-        <router-link v-if="!auth" to="/register" class="link">Регистрация</router-link>
-         <router-link v-if="!auth" to="/admin" class="link">Админ понель</router-link>
-        <button v-if="auth" class="btn-logout" @click="doLogout">Выйти</button>
-      </nav>
-    </header>
+  <router-link to="/" class="link">Home</router-link>
+  <router-link v-if="auth" to="/subscriptions" class="link">Subscriptions</router-link>
+  <router-link v-if="auth" to="/favorites" class="link">Favorites</router-link>
+  <router-link v-if="auth" to="/catalog" class="link">Movie Catalog</router-link>
+  <router-link v-if="!auth" to="/login" class="link">Login</router-link>
+  <router-link v-if="!auth" to="/register" class="link">Register</router-link>
+  <router-link v-if="!auth" to="/admin" class="link">Admin Panel</router-link>
+  <button v-if="auth" class="btn-logout" @click="doLogout">Logout</button>
+</nav>
+</header>
+
 
     <main class="container">
       <router-view />

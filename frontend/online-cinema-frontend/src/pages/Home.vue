@@ -8,28 +8,29 @@ const profile = inject('profile') as any
 <template>
   <div class="home-wrap">
     <div class="home-card">
-      <h1>Онлайн-кинотеатр</h1>
-      <p class="lead">Добро пожаловать в демо-frontend.</p>
+      <h1>Online Cinema</h1>
+      <p class="lead">Welcome to the demo frontend.</p>
 
       <div v-if="auth && profile" class="profile-card">
         <div class="avatar">
           <span>{{ profile.firstName?.[0] || '?' }}</span>
         </div>
         <div class="info">
-          <h2>Ваш профиль</h2>
-          <div class="field"><strong>Логин:</strong> {{ profile.login }}</div>
-          <div class="field"><strong>Имя:</strong> {{ profile.firstName }} {{ profile.lastName }}</div>
+          <h2>Your Profile</h2>
+          <div class="field"><strong>Login:</strong> {{ profile.login }}</div>
+          <div class="field"><strong>Name:</strong> {{ profile.firstName }} {{ profile.lastName }}</div>
           <div class="field"><strong>Email:</strong> {{ profile.email }}</div>
         </div>
       </div>
 
       <div v-else class="banner">
-        <strong>Вы не авторизованы.</strong>
-        <p>Используйте меню вверху, чтобы войти или зарегистрироваться.</p>
+        <strong>You are not authorized.</strong>
+        <p>Use the menu above to log in or register.</p>
       </div>
     </div>
   </div>
 </template>
+
 
 <style scoped>
 .home-wrap {

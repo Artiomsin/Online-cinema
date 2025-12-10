@@ -6,25 +6,32 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 const subscriptions = ref<any[]>([])
 const userSubscriptions = ref<any[]>([])
 const selectedSubscription = ref<number|null>(null)
-const startDate = ref<string>('')   // всегда строка
-const endDate = ref<string>('')     // всегда строка
+const startDate = ref<string>('')   // always a string
+const endDate = ref<string>('')     // always a string
 const message = ref<string>('')
 
-// загрузка всех доступных подписок
+// load all available subscriptions
 async function fetchSubscriptions() {
   const res = await fetch(`${API_BASE}/subscriptions`, { credentials: 'include' })
   subscriptions.value = await res.json()
 }
 
-// загрузка подписок текущего пользователя
+// load subscriptions of the current user
 async function fetchUserSubscriptions() {
   const res = await fetch(`${API_BASE}/users/subscriptions`, {
     credentials: 'include'
   })
   userSubscriptions.value = await res.json()
+  
+  const activeSubs = userSubscriptions.value.filter((s: any) => {
+    const now = new Date()
+    const end = new Date(s.endDate)
+    return s.status === 'active' && end >= now
+  })
+  localStorage.setItem('userSubscriptions', JSON.stringify(activeSubs))
 }
 
-// пересчёт даты окончания
+// recalculate end date
 watch([selectedSubscription, startDate], () => {
   if (!selectedSubscription.value || !startDate.value) {
     endDate.value = ''
@@ -42,10 +49,25 @@ watch([selectedSubscription, startDate], () => {
   endDate.value = (end.toISOString().split('T')[0]) || ''
 })
 
-// назначение подписки пользователю
+// assign subscription to user
 async function assignSubscription() {
   if (!selectedSubscription.value || !startDate.value || !endDate.value) {
-    message.value = 'Заполните дату начала и выберите план'
+    message.value = 'Fill in the start date and select a plan'
+    return
+  }
+
+  
+  const plan = subscriptions.value.find(s => s.id === selectedSubscription.value)
+  if (!plan) {
+    message.value = 'Selected plan not found'
+    return
+  }
+
+  const alreadyHas = userSubscriptions.value.some(
+    (us: any) => us.title === plan.title && us.status === 'active'
+  )
+  if (alreadyHas) {
+    message.value = `You already have an active subscription: ${plan.title}`
     return
   }
 
@@ -61,14 +83,19 @@ async function assignSubscription() {
   })
 
   if (res.ok) {
-    message.value = 'Подписка назначена успешно'
+    message.value = 'Subscription assigned successfully'
     await fetchUserSubscriptions()
   } else {
-    message.value = 'Ошибка при назначении подписки'
+    message.value = 'Error assigning subscription'
   }
 }
 
+
 onMounted(() => {
+  const saved = localStorage.getItem('userSubscriptions')
+  if (saved) {
+    userSubscriptions.value = JSON.parse(saved)
+  }
   fetchSubscriptions()
   fetchUserSubscriptions()
 })
@@ -76,73 +103,71 @@ onMounted(() => {
 
 <template>
   <div class="subscriptions-page">
-    <h1>Подписки</h1>
+    <h1>Subscriptions</h1>
 
-    <!-- список всех доступных планов -->
+    <!-- list of all available plans -->
     <div v-if="subscriptions.length">
       <ul class="subscription-list">
         <li v-for="s in subscriptions" :key="s.id" class="subscription-item">
-          <strong>{{ s.title }}</strong> — {{ s.price }} ₽ / {{ s.period }} дней
+          <strong>{{ s.title }}</strong> — {{ s.price }} ₽ / {{ s.period }} days
         </li>
       </ul>
     </div>
     <div v-else>
-      <p>Нет доступных подписок.</p>
+      <p>No available subscriptions.</p>
     </div>
 
-    <!-- назначение подписки -->
+    <!-- assign subscription -->
     <div class="assign-card">
-      <h2>Назначить подписку пользователю</h2>
+      <h2>Assign Subscription to User</h2>
 
       <div class="form-group">
-        <label for="subscription">Выберите подписку</label>
+        <label for="subscription">Select Subscription</label>
         <select id="subscription" v-model="selectedSubscription" class="input">
-          <option disabled value="">-- выберите план --</option>
+          <option disabled value="">-- select a plan --</option>
           <option v-for="s in subscriptions" :key="s.id" :value="s.id">
-            {{ s.title }} — {{ s.price }} ₽ / {{ s.period }} дней
+            {{ s.title }} — {{ s.price }} ₽ / {{ s.period }} days
           </option>
         </select>
       </div>
 
       <div class="form-row">
         <div class="form-group">
-          <label for="start">Дата начала</label>
+          <label for="start">Start Date</label>
           <input id="start" type="date" v-model="startDate" class="input" />
         </div>
         <div class="form-group">
-          <label for="end">Дата окончания</label>
+          <label for="end">End Date</label>
           <input id="end" type="date" v-model="endDate" class="input" readonly />
-          <small class="hint">Дата окончания рассчитывается автоматически</small>
+          <small class="hint">End date is calculated automatically</small>
         </div>
       </div>
 
-      <button class="btn" @click="assignSubscription">Назначить</button>
+      <button class="btn" @click="assignSubscription">Assign</button>
       <p class="message">{{ message }}</p>
     </div>
 
-   
-<!-- список подписок текущего пользователя -->
-<div class="user-subscriptions">
-  <h2>Ваши подписки</h2>
-  <div v-if="userSubscriptions.length">
-    <ul class="subscription-list">
-      <li v-for="us in userSubscriptions" :key="us.userSubscriptionId" class="subscription-item">
-        <strong>{{ us.title }}</strong> — {{ us.price }} ₽ / {{ us.period }} дней
-        <div class="sub-meta">
-          <span>Статус: {{ us.status }}</span>
-          <span> С {{ us.startDate }} по {{ us.endDate }}</span>
-        </div>
-      </li>
-    </ul>
-  </div>
-  <div v-else>
-    <p>У вас пока нет оформленных подписок.</p>
-  </div>
-</div>
-
-
+    <!-- list of current user's subscriptions -->
+    <div class="user-subscriptions">
+      <h2>Your Subscriptions</h2>
+      <div v-if="userSubscriptions.length">
+        <ul class="subscription-list">
+          <li v-for="us in userSubscriptions" :key="us.userSubscriptionId" class="subscription-item">
+            <strong>{{ us.title }}</strong> — {{ us.price }} ₽ / {{ us.period }} days
+            <div class="sub-meta">
+              <span>Status: {{ us.status }}</span>
+              <span> From {{ us.startDate }} to {{ us.endDate }}</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div v-else>
+        <p>You don’t have any active subscriptions yet.</p>
+      </div>
+    </div>
   </div>
 </template>
+
 
 
 

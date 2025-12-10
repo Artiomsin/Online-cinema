@@ -1,6 +1,5 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
-import { genres, movieGenres } from '../database/schema';
-import { eq, and } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { CreateGenreDto } from '../dto/create-genre.dto';
 import { UpdateGenreDto } from '../dto/update-genre.dto';
 
@@ -8,38 +7,71 @@ import { UpdateGenreDto } from '../dto/update-genre.dto';
 export class GenresService {
   constructor(@Inject('DB') private readonly db: any) {}
 
+  // --- CREATE ---
   async createGenre(dto: CreateGenreDto) {
-    const [genre] = await this.db.insert(genres).values(dto).returning();
-    return genre;
+    const result = await this.db.execute(sql`
+      INSERT INTO "Genre"."genres" (name, description)
+      VALUES (${dto.name}, ${dto.description})
+      RETURNING id, name, description;
+    `);
+    return result.rows[0];
   }
 
+  // --- UPDATE ---
   async updateGenre(id: number, dto: UpdateGenreDto) {
-    const [genre] = await this.db.update(genres).set(dto).where(eq(genres.id, id)).returning();
-    if (!genre) throw new NotFoundException(`Genre ${id} not found`);
-    return genre;
+    const result = await this.db.execute(sql`
+      UPDATE "Genre"."genres"
+      SET 
+        name = COALESCE(${dto.name}, name),
+        description = COALESCE(${dto.description}, description)
+      WHERE id = ${id}
+      RETURNING id, name, description;
+    `);
+
+    if (result.rows.length === 0) throw new NotFoundException(`Genre ${id} not found`);
+    return result.rows[0];
   }
 
+  // --- DELETE ---
   async deleteGenre(id: number) {
-    const [genre] = await this.db.delete(genres).where(eq(genres.id, id)).returning();
-    if (!genre) throw new NotFoundException(`Genre ${id} not found`);
-    return genre;
+    const result = await this.db.execute(sql`
+      DELETE FROM "Genre"."genres"
+      WHERE id = ${id}
+      RETURNING id, name, description;
+    `);
+
+    if (result.rows.length === 0) throw new NotFoundException(`Genre ${id} not found`);
+    return result.rows[0];
   }
 
+  // --- FIND ALL ---
   async findAllGenres() {
-    return this.db.select().from(genres);
+    const result = await this.db.execute(sql`
+      SELECT id, name, description
+      FROM "Genre"."genres";
+    `);
+    return result.rows;
   }
 
+  // --- ADD GENRE TO MOVIE ---
   async addGenreToMovie(movieId: number, genreId: number) {
-    const [link] = await this.db.insert(movieGenres).values({ movieId, genreId }).returning();
-    return link;
+    const result = await this.db.execute(sql`
+      INSERT INTO "Movie_Genre"."movie_genres" (movie_id, genre_id)
+      VALUES (${movieId}, ${genreId})
+      RETURNING id, movie_id AS "movieId", genre_id AS "genreId";
+    `);
+    return result.rows[0];
   }
 
+  // --- REMOVE GENRE FROM MOVIE ---
   async removeGenreFromMovie(movieId: number, genreId: number) {
-    const [deleted] = await this.db
-      .delete(movieGenres)
-      .where(and(eq(movieGenres.movieId, movieId), eq(movieGenres.genreId, genreId)))
-      .returning();
-    if (!deleted) throw new NotFoundException(`Genre ${genreId} not linked to movie ${movieId}`);
-    return deleted;
+    const result = await this.db.execute(sql`
+      DELETE FROM "Movie_Genre"."movie_genres"
+      WHERE movie_id = ${movieId} AND genre_id = ${genreId}
+      RETURNING id, movie_id AS "movieId", genre_id AS "genreId";
+    `);
+
+    if (result.rows.length === 0) throw new NotFoundException(`Genre ${genreId} not linked to movie ${movieId}`);
+    return result.rows[0];
   }
 }

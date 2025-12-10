@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Patch, UseGuards, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Patch, UseGuards, Req, UnauthorizedException, ParseIntPipe } from '@nestjs/common';
 import { UsersService } from '../services/users.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { AssignRoleDto } from 'src/dto/assign-role.dto';
@@ -12,7 +12,6 @@ import { Roles } from 'src/services/roles.decorator';
 export class UsersController {
 
   constructor(private readonly usersService: UsersService) {}
-
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('user') 
@@ -89,18 +88,7 @@ export class UsersController {
     return this.usersService.getUserRoles(userId);
   }
 
-    
 
 
-  @Patch(':userId/subscriptions/:userSubscriptionId/status')
-  async updateSubscriptionStatus(
-    @Param('userSubscriptionId') userSubscriptionId: number,
-    @Body() dto: UpdateSubscriptionStatusDto,
-  ) {
-    return this.usersService.updateSubscriptionStatus({
-      ...dto,
-      userSubscriptionId,
-    });
-  }
 
 }

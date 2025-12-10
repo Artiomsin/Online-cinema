@@ -1,197 +1,192 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
-import { users, NewUser, userSubscriptions, subscriptions } from '../database/schema';
-import { and, eq, sql } from 'drizzle-orm';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 import { AssignRoleDto } from 'src/dto/assign-role.dto';
-import { userRoles, roles } from '../database/schema';
 import { AssignSubscriptionDto } from 'src/dto/assign-subscription.dto';
 import { UpdateSubscriptionStatusDto } from 'src/dto/update-subscription-status.dto';
+import { sql } from 'drizzle-orm';
+
 @Injectable()
 export class UsersService {
   constructor(@Inject('DB') private readonly db: any) {}
 
+  // --- USERS ---
   async createUser(dto: CreateUserDto) {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    const newUser: NewUser = {
-      login: dto.login,
-      passwordHash: hashedPassword,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      email: dto.email,
-      registrationDate: new Date().toISOString(),
-      status: true,
-    };
+    const result = await this.db.execute(sql`
+      INSERT INTO "User"."users"
+        (login, password_hash, first_name, last_name, email, registration_date, status)
+      VALUES (${dto.login}, ${hashedPassword}, ${dto.firstName}, ${dto.lastName}, ${dto.email}, ${new Date().toISOString()}, true)
+      RETURNING id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status;
+    `);
 
-    const [user] = await this.db.insert(users).values(newUser).returning();
-    return user;
+    return result.rows[0];
   }
 
   async findAllUsers() {
-    return await this.db.select().from(users);
+    const result = await this.db.execute(sql`
+      SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
+      FROM "User"."users";
+    `);
+    return result.rows;
   }
 
   async findUserById(id: number) {
-    const [user] = await this.db.select().from(users).where(eq(users.id, id));
-    if (!user) throw new NotFoundException(`User with id ${id} not found`);
-    return user;
+    const result = await this.db.execute(sql`
+      SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
+      FROM "User"."users"
+      WHERE id = ${id};
+    `);
+
+    if (result.rows.length === 0) throw new NotFoundException(`User with id ${id} not found`);
+    return result.rows[0];
   }
 
   async updateUser(id: number, dto: UpdateUserDto) {
-    const updateData: Partial<NewUser> = {};
+    const hashedPassword = dto.password ? await bcrypt.hash(dto.password, 10) : null;
 
-    if (dto.login) updateData.login = dto.login;
-    if (dto.firstName) updateData.firstName = dto.firstName;
-    if (dto.lastName) updateData.lastName = dto.lastName;
-    if (dto.email) updateData.email = dto.email;
-    if (dto.password) {
-      updateData.passwordHash = await bcrypt.hash(dto.password, 10);
-    }
+    const result = await this.db.execute(sql`
+      UPDATE "User"."users"
+      SET 
+        login = COALESCE(${dto.login}, login),
+        first_name = COALESCE(${dto.firstName}, first_name),
+        last_name = COALESCE(${dto.lastName}, last_name),
+        email = COALESCE(${dto.email}, email),
+        password_hash = COALESCE(${hashedPassword}, password_hash)
+      WHERE id = ${id}
+      RETURNING id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status;
+    `);
 
-    const [user] = await this.db.update(users).set(updateData).where(eq(users.id, id)).returning();
-    if (!user) throw new NotFoundException(`User with id ${id} not found`);
-    return user;
+    if (result.rows.length === 0) throw new NotFoundException(`User with id ${id} not found`);
+    return result.rows[0];
   }
 
   async deleteUser(id: number) {
-    const [user] = await this.db.delete(users).where(eq(users.id, id)).returning();
-    if (!user) throw new NotFoundException(`User with id ${id} not found`);
-    return user;
+    const result = await this.db.execute(sql`
+      DELETE FROM "User"."users"
+      WHERE id = ${id}
+      RETURNING id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status;
+    `);
+
+    if (result.rows.length === 0) throw new NotFoundException(`User with id ${id} not found`);
+    return result.rows[0];
   }
 
-  
+  // --- ROLES ---
   async assignRole(dto: AssignRoleDto) {
-    const [userRole] = await this.db
-      .insert(userRoles)
-      .values({ userId: dto.userId, roleId: dto.roleId })
-      .returning();
-
-    return userRole;
+    const result = await this.db.execute(sql`
+      INSERT INTO "User_Role"."user_roles" (user_id, role_id)
+      VALUES (${dto.userId}, ${dto.roleId})
+      RETURNING *;
+    `);
+    return result.rows[0];
   }
 
   async removeRole(dto: AssignRoleDto) {
-    const [deleted] = await this.db
-      .delete(userRoles)
-      .where(and(eq(userRoles.userId, dto.userId), eq(userRoles.roleId, dto.roleId)))
-      .returning();
+    const result = await this.db.execute(sql`
+      DELETE FROM "User_Role"."user_roles"
+      WHERE user_id = ${dto.userId} AND role_id = ${dto.roleId}
+      RETURNING *;
+    `);
 
-    if (!deleted) {
-      throw new NotFoundException(`Role ${dto.roleId} not found for user ${dto.userId}`);
-    }
-    return deleted;
+    if (result.rows.length === 0) throw new NotFoundException(`Role ${dto.roleId} not found for user ${dto.userId}`);
+    return result.rows[0];
   }
-
 
   async getUserRoles(userId: number) {
-    return await this.db
-      .select({
-        roleId: roles.id,
-        roleName: roles.name,
-        description: roles.description,
-      })
-      .from(userRoles)
-      .innerJoin(roles, eq(userRoles.roleId, roles.id))
-      .where(eq(userRoles.userId, userId));
+    const result = await this.db.execute(sql`
+      SELECT r.id AS "roleId", r.name AS "roleName", r.description
+      FROM "User_Role"."user_roles" ur
+      INNER JOIN "Role"."roles" r ON ur.role_id = r.id
+      WHERE ur.user_id = ${userId};
+    `);
+    return result.rows;
   }
 
-
-
-  
+  // --- SUBSCRIPTIONS ---
   async assignSubscription(dto: AssignSubscriptionDto) {
-    const [userSubscription] = await this.db
-      .insert(userSubscriptions)
-      .values({
-        userId: dto.userId,
-        subscriptionId: dto.subscriptionId,
-        startDate: new Date(dto.start),
-        endDate: new Date(dto.end),
-        status: 'active', 
-      })
-      .returning();
-
-    return userSubscription;
+    const result = await this.db.execute(sql`
+      INSERT INTO "User_Subscription"."user_subscriptions"
+        (user_id, subscription_id, start_date, end_date, status)
+      VALUES (${dto.userId}, ${dto.subscriptionId}, ${dto.start}, ${dto.end}, 'active')
+      RETURNING *;
+    `);
+    return result.rows[0];
   }
 
-  
   async getUserSubscriptions(userId: number) {
-  // 1. Обновляем все подписки, у которых дата окончания прошла
-  const today = new Date().toISOString().split("T")[0]; 
+    const today = new Date().toISOString().split('T')[0];
 
-  await this.db.execute(sql`
+    await this.db.execute(sql`
+      UPDATE "User_Subscription"."user_subscriptions"
+      SET status = 'expired'
+      WHERE end_date < ${today}
+        AND status = 'active'
+        AND user_id = ${userId};
+    `);
+
+    const subs = await this.db.execute(sql`
+      SELECT 
+        us.id AS "userSubscriptionId",
+        s.id AS "subscriptionId",
+        s.title,
+        s.price,
+        s.period,
+        us.start_date AS "startDate",
+        us.end_date AS "endDate",
+        us.status
+      FROM "User_Subscription"."user_subscriptions" us
+      INNER JOIN "Subscription"."subscriptions" s
+        ON us.subscription_id = s.id
+      WHERE us.user_id = ${userId};
+    `);
+
+    return subs.rows;
+  }
+
+  async updateSubscriptionStatus(dto: { userId: number; userSubscriptionId: number; status: string }) {
+  const result = await this.db.execute(sql`
     UPDATE "User_Subscription"."user_subscriptions"
-    SET status = 'expired'
-    WHERE end_date < ${today}
-      AND status = 'active'
-      AND user_id = ${userId};
+    SET status = ${dto.status}
+    WHERE id = ${dto.userSubscriptionId} AND user_id = ${dto.userId}
+    RETURNING *;
   `);
 
-  // 2. Загружаем все подписки пользователя
-  const subs = await this.db.execute(sql`
-    SELECT 
-      us.id AS "userSubscriptionId",
-      s.id AS "subscriptionId",
-      s.title,
-      s.price,
-      s.period,
-      us.start_date AS "startDate",
-      us.end_date AS "endDate",
-      us.status
-    FROM "User_Subscription"."user_subscriptions" us
-    INNER JOIN "Subscription"."subscriptions" s
-      ON us.subscription_id = s.id
-    WHERE us.user_id = ${userId};
-  `);
-
-  
-  return subs.rows; 
-}
-
-
-  async updateSubscriptionStatus(dto: UpdateSubscriptionStatusDto) {
-    const [updated] = await this.db
-      .update(userSubscriptions)
-      .set({ status: dto.status })
-      .where(eq(userSubscriptions.id, dto.userSubscriptionId))
-      .returning();
-
-    if (!updated) {
-      throw new NotFoundException(`Subscription with id ${dto.userSubscriptionId} not found`);
-    }
-    return updated;
+  if (result.rows.length === 0) {
+    throw new NotFoundException(`Subscription ${dto.userSubscriptionId} not found for user ${dto.userId}`);
   }
 
-
- async getUserProfile(userId: number) {
-  console.log('👉 getUserProfile userId:', userId);
-
-  const result = await this.db
-    .select()
-    .from(users)
-    .where(eq(users.id, userId));
-
-  console.log('👉 raw result:', result);
-
-  const [user] = result;
-  if (!user) {
-    throw new NotFoundException(`Пользователь с id=${userId} не найден`);
-  }
-
-  return {
-    login: user.login ?? null,
-    firstName: user.firstName ?? null,
-    lastName: user.lastName ?? null,
-    email: user.email ?? null,
-  };
+  return result.rows[0];
 }
 
+  // --- PROFILE & STATUS ---
+  async getUserProfile(userId: number) {
+    const result = await this.db.execute(sql`
+      SELECT login, first_name AS "firstName", last_name AS "lastName", email
+      FROM "User"."users"
+      WHERE id = ${userId};
+    `);
 
-   
+    if (result.rows.length === 0) throw new NotFoundException(`Пользователь с id=${userId} не найден`);
+    return result.rows[0];
+  }
+
   async updateStatus(userId: number, status: boolean) {
-    const [user] = await this.db.update(users).set({ status }).where(eq(users.id, userId)).returning();
-    if (!user) throw new NotFoundException(`User with id ${userId} not found`);
-    return user;
+  const result = await this.db.execute(sql`
+    UPDATE "User"."users"
+    SET status = ${status}
+    WHERE id = ${userId}
+    RETURNING id, login, password_hash AS "passwordHash",
+              first_name AS "firstName", last_name AS "lastName",
+              email, registration_date AS "registrationDate", status;
+  `);
+
+  if (result.rows.length === 0) {
+    throw new NotFoundException(`User with id ${userId} not found`);
   }
+  return result.rows[0];
+}
 
 }

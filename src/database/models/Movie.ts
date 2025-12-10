@@ -15,7 +15,7 @@ export const movies = schema.table("movies", {
   videoUrl480: varchar("video_url_480", { length: 500 }),
   videoUrl720: varchar("video_url_720", { length: 500 }),
   videoUrl1080: varchar("video_url_1080", { length: 500 }),
-  posterUrl: varchar("poster_url", { length: 500 }),
+  posterUrl: varchar("poster_url"),
 });
 
 export type Movie = typeof movies.$inferSelect;

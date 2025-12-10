@@ -24,6 +24,14 @@ const newInFavoriteGenres = ref<any[]>([])
 
 
 
+function hasAccess(requiredTitle: string): boolean {
+  const subs = JSON.parse(localStorage.getItem('userSubscriptions') || '[]')
+  // проверяем активные подписки по названию
+  return subs.some((s: any) => s.status === 'active' && s.title === requiredTitle)
+}
+
+
+
 async function checkFavorite(movieId: number) {
   try {
     const res = await fetch(`${API_BASE}/favorites/check`, {
@@ -34,7 +42,7 @@ async function checkFavorite(movieId: number) {
     })
     if (res.ok) {
       const data = await res.json()
-      isFavorite.value = data.isFavorite // ← теперь всегда корректно
+      isFavorite.value = data.isFavorite 
     }
   } catch (e: any) {
     error.value = e.message
@@ -45,7 +53,7 @@ async function checkFavorite(movieId: number) {
 async function toggleFavorite(movieId: number) {
   try {
     if (isFavorite.value) {
-      // удалить из избранного
+      
       await fetch(`${API_BASE}/favorites`, {
         method: 'DELETE',
         credentials: 'include',
@@ -54,7 +62,7 @@ async function toggleFavorite(movieId: number) {
       })
       isFavorite.value = false
     } else {
-      // добавить в избранное
+      
       await fetch(`${API_BASE}/favorites`, {
         method: 'POST',
         credentials: 'include',
@@ -96,7 +104,7 @@ async function loadComments(movieId: number) {
 async function addComment(movieId: number) {
   try {
     if (!newRating.value || !newComment.value.trim()) {
-      throw new Error('Введите текст и выберите оценку')
+      throw new Error('Enter text and select a rating')
     }
 
     const res = await fetch(`${API_BASE}/comments`, {
@@ -110,7 +118,7 @@ async function addComment(movieId: number) {
       }),
     })
 
-    if (!res.ok) throw new Error('Ошибка добавления комментария')
+    if (!res.ok) throw new Error('Error adding comment')
 
     newComment.value = ''
     newRating.value = null
@@ -134,7 +142,7 @@ async function loadMovieAndSimilar(id: number) {
       fetch(`${API_BASE}/recommendations/genres`, { credentials: 'include' }),
     ])
 
-    if (!movieRes.ok) throw new Error('Фильм не найден')
+    if (!movieRes.ok) throw new Error('Movie not found')
 
     movie.value = await movieRes.json()
     genres.value = genreRes.ok ? await genreRes.json() : []
@@ -190,7 +198,7 @@ function openMovie(id: number) {
 
 <template>
   <div class="details-wrap">
-    <div v-if="loading" class="status">Загрузка...</div>
+    <div v-if="loading" class="status">Loading...</div>
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="movie" class="details-card">
@@ -203,28 +211,28 @@ function openMovie(id: number) {
 
         <div class="favorite">
           <button class="fav-btn" @click="toggleFavorite(movie.id)">
-            {{ isFavorite ? '★ В избранном' : '☆ Добавить в избранное' }}
+            {{ isFavorite ? '★ In Favorites' : '☆ Add to Favorites' }}
           </button>
         </div>
 
         <p class="desc">{{ movie.description }}</p>
 
         <div class="meta">
-          <p><strong>Год:</strong> {{ movie.releaseYear }}</p>
-          <p><strong>Язык:</strong> {{ movie.originalLanguage }}</p>
-          <p><strong>Страна:</strong> {{ movie.productionCountry }}</p>
-          <p><strong>Возраст:</strong> {{ movie.ageRating }}+</p>
-          <p><strong>Длительность:</strong> {{ movie.duration }} мин</p>
-          <p><strong>Подписка:</strong> {{ movie.subscriptionLevel }}</p>
+         <p><strong>Year:</strong> {{ movie.releaseYear }}</p>
+          <p><strong>Language:</strong> {{ movie.originalLanguage }}</p>
+          <p><strong>Country:</strong> {{ movie.productionCountry }}</p>
+          <p><strong>Age Rating:</strong> {{ movie.ageRating }}+</p>
+          <p><strong>Duration:</strong> {{ movie.duration }} min</p>
+          <p><strong>Subscription:</strong> {{ movie.subscriptionLevel }}</p>
         </div>
 
         <div v-if="genres.length" class="genres">
-          <strong>Жанры:</strong>
+          <strong>Genres:</strong>
           <span v-for="g in genres" :key="g.id" class="tag">{{ g.name }}</span>
         </div>
 
         <div v-if="actors.length" class="actors">
-          <strong>Актёры:</strong>
+          <strong>Actors:</strong>
           <ul>
             <li v-for="a in actors" :key="a.id">
               <router-link :to="`/actors/${a.id}`" class="actor-link">
@@ -240,7 +248,8 @@ function openMovie(id: number) {
       <div class="details-body">
        
         <div class="watch">
-          <h3>Смотреть онлайн:</h3>
+          <h3>Watch Online:</h3>
+          <div v-if="hasAccess(movie.subscriptionLevel)">
           <div class="buttons">
             <button v-if="movie.videoUrl480" class="btn quality-480" @click="play(movie.videoUrl480)">480p</button>
             <button v-if="movie.videoUrl720" class="btn quality-720" @click="play(movie.videoUrl720)">720p</button>
@@ -257,28 +266,32 @@ function openMovie(id: number) {
               allowfullscreen
             ></iframe>
           </div>
+          </div>
+           <div v-else class="no-access">
+    You need subscription: {{ movie.subscriptionLevel }} to watch this movie.
+  </div>
         </div>
 
         
         <div class="comments">
-          <h3>Комментарии</h3>
+          <h3>Comments</h3>
           <div v-if="averageRating !== null" class="avg-rating">
-            Средний рейтинг: {{ averageRating.toFixed(1) }}
+             Average rating: {{ averageRating.toFixed(1) }}
           </div>
 
           <div v-if="comments.length" class="comment-list">
             <div v-for="c in comments" :key="c.id" class="comment-card">
-              <p class="author">Пользователь {{ c.userId }}</p>
+              <p class="author">User {{ c.userId }}</p>
               <p class="text">{{ c.commentText }}</p>
-              <p class="rating">Оценка: {{ c.rating }}</p>
-              <p class="date">Дата: {{ c.commentDate }}</p>
+              <p class="rating">Rating: {{ c.rating }}</p>
+              <p class="date">Date: {{ c.commentDate }}</p>
             </div>
           </div>
-          <div v-else class="no-comments">Комментариев пока нет</div>
+          <div v-else class="no-comments">No comments yet</div>
 
           <div class="add-comment">
-            <h4>Добавить комментарий</h4>
-            <textarea v-model="newComment" placeholder="Ваш комментарий"></textarea>
+            <h4>Add a Comment</h4>
+            <textarea v-model="newComment" placeholder="Your comment"></textarea>
 
             <div class="star-rating">
               <span
@@ -290,50 +303,48 @@ function openMovie(id: number) {
               >★</span>
             </div>
 
-            <button @click="addComment(movie.id)">Отправить</button>
+            <button @click="addComment(movie.id)">Submit</button>
           </div>
         </div>
 
-        
         <div class="recommendations">
-          <h3>На основе избранного</h3>
+          <h3>Based on Favorites</h3>
           <div v-if="recommendedByFavorites.length" class="similar-grid">
             <div v-for="m in recommendedByFavorites" :key="m.id" class="similar-card" @click="openMovie(m.id)">
               <img :src="m.posterUrl" alt="Poster" class="poster" />
               <div class="title">{{ m.title }}</div>
             </div>
           </div>
-          <div v-else class="no-similar">Нет рекомендаций</div>
+          <div v-else class="no-similar">No recommendations</div>
 
-          <h3>На основе истории просмотров</h3>
+          <h3>Based on Watch History</h3>
           <div v-if="recommendedByHistory.length" class="similar-grid">
             <div v-for="m in recommendedByHistory" :key="m.id" class="similar-card" @click="openMovie(m.id)">
               <img :src="m.posterUrl" alt="Poster" class="poster" />
               <div class="title">{{ m.title }}</div>
             </div>
           </div>
-          <div v-else class="no-similar">Нет рекомендаций</div>
+          <div v-else class="no-similar">No recommendations</div>
 
-          <h3>Новые фильмы в любимых жанрах</h3>
+          <h3>New Movies in Favorite Genres</h3>
           <div v-if="newInFavoriteGenres.length" class="similar-grid">
             <div v-for="m in newInFavoriteGenres" :key="m.id" class="similar-card" @click="openMovie(m.id)">
               <img :src="m.posterUrl" alt="Poster" class="poster" />
               <div class="title">{{ m.title }}</div>
             </div>
           </div>
-          <div v-else class="no-similar">Нет рекомендаций</div>
+          <div v-else class="no-similar">No recommendations</div>
         </div>
 
-        
         <div class="similar">
-          <h3>Похожие фильмы</h3>
+          <h3>Similar Movies</h3>
           <div v-if="similarMovies.length" class="similar-grid">
             <div v-for="s in similarMovies" :key="s.id" class="similar-card" @click="openMovie(s.id)">
               <img :src="s.posterUrl" alt="Poster" class="poster" />
               <div class="title">{{ s.title }}</div>
             </div>
           </div>
-          <div v-else class="no-similar">Нет рекомендаций</div>
+          <div v-else class="no-similar">No recommendations</div>
         </div>
       </div>
     </div>

@@ -32,17 +32,36 @@ export class AuthService {
       throw new UnauthorizedException('Неверный логин или пароль');
     }
 
-    
+    // обновляем статус на активный
+    await this.usersService.updateStatus(user.id, true);
+
     return this.setTokens(user.id, user.email, res);
   }
 
 
+async logout(req: Request, res: Response) {
+  // достаём access_token из куки
+  const token = req.cookies['access_token'];
+  let payload: any = null;
 
-  async logout(res: Response) {
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
-    return { message: 'Вы вышли из системы' };
+  if (token) {
+    payload = await this.jwtService.verifyAsync(token, {
+      secret: process.env.JWT_ACCESS_SECRET,
+    }).catch(() => null);
   }
+
+  // если токен валиден → обновляем статус
+  if (payload) {
+    await this.usersService.updateStatus(payload.sub, false);
+  }
+
+  // очищаем куки
+  res.clearCookie('access_token');
+  res.clearCookie('refresh_token');
+
+  return { message: 'Вы вышли из системы' };
+}
+
 
 
   async refresh(req: Request, res: Response) {

@@ -1,4 +1,4 @@
-// services/comments.service.ts
+
 import { Injectable, Inject } from '@nestjs/common';
 import { comments } from '../database/models/Comment';
 import { eq } from 'drizzle-orm';
