@@ -21,5 +21,14 @@ services:
     ports:
       - "${PGADMIN_PORT}:80"
 
+  cinema-redis:
+    image: redis:7-alpine
+    container_name: cinema-redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - cinema_redisdata:/data
+
 volumes:
   cinema_pgdata:
+  cinema_redisdata:

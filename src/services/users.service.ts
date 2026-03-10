@@ -25,6 +25,16 @@ export class UsersService {
     return result.rows[0];
   }
 
+  async findUserByLogin(login: string) {
+    const result = await this.db.execute(sql`
+      SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", 
+             last_name AS "lastName", email, registration_date AS "registrationDate", status
+      FROM "User"."users" 
+      WHERE login = ${login};
+    `);
+    return result.rows[0];
+  }
+
   async findAllUsers() {
     const result = await this.db.execute(sql`
       SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
@@ -40,12 +50,15 @@ export class UsersService {
       WHERE id = ${id};
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`User with id ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`User with id ${id} not found`);
     return result.rows[0];
   }
 
   async updateUser(id: number, dto: UpdateUserDto) {
-    const hashedPassword = dto.password ? await bcrypt.hash(dto.password, 10) : null;
+    const hashedPassword = dto.password
+      ? await bcrypt.hash(dto.password, 10)
+      : null;
 
     const result = await this.db.execute(sql`
       UPDATE "User"."users"
@@ -59,7 +72,8 @@ export class UsersService {
       RETURNING id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`User with id ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`User with id ${id} not found`);
     return result.rows[0];
   }
 
@@ -70,7 +84,8 @@ export class UsersService {
       RETURNING id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`User with id ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`User with id ${id} not found`);
     return result.rows[0];
   }
 
@@ -91,7 +106,10 @@ export class UsersService {
       RETURNING *;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Role ${dto.roleId} not found for user ${dto.userId}`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(
+        `Role ${dto.roleId} not found for user ${dto.userId}`,
+      );
     return result.rows[0];
   }
 
@@ -146,20 +164,26 @@ export class UsersService {
     return subs.rows;
   }
 
-  async updateSubscriptionStatus(dto: { userId: number; userSubscriptionId: number; status: string }) {
-  const result = await this.db.execute(sql`
+  async updateSubscriptionStatus(dto: {
+    userId: number;
+    userSubscriptionId: number;
+    status: string;
+  }) {
+    const result = await this.db.execute(sql`
     UPDATE "User_Subscription"."user_subscriptions"
     SET status = ${dto.status}
     WHERE id = ${dto.userSubscriptionId} AND user_id = ${dto.userId}
     RETURNING *;
   `);
 
-  if (result.rows.length === 0) {
-    throw new NotFoundException(`Subscription ${dto.userSubscriptionId} not found for user ${dto.userId}`);
-  }
+    if (result.rows.length === 0) {
+      throw new NotFoundException(
+        `Subscription ${dto.userSubscriptionId} not found for user ${dto.userId}`,
+      );
+    }
 
-  return result.rows[0];
-}
+    return result.rows[0];
+  }
 
   // --- PROFILE & STATUS ---
   async getUserProfile(userId: number) {
@@ -169,12 +193,13 @@ export class UsersService {
       WHERE id = ${userId};
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Пользователь с id=${userId} не найден`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`Пользователь с id=${userId} не найден`);
     return result.rows[0];
   }
 
   async updateStatus(userId: number, status: boolean) {
-  const result = await this.db.execute(sql`
+    const result = await this.db.execute(sql`
     UPDATE "User"."users"
     SET status = ${status}
     WHERE id = ${userId}
@@ -183,10 +208,9 @@ export class UsersService {
               email, registration_date AS "registrationDate", status;
   `);
 
-  if (result.rows.length === 0) {
-    throw new NotFoundException(`User with id ${userId} not found`);
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`User with id ${userId} not found`);
+    }
+    return result.rows[0];
   }
-  return result.rows[0];
-}
-
 }

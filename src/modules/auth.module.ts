@@ -6,6 +6,7 @@ import { JwtStrategy } from '../services/jwt.strategy';
 import { RolesGuard } from '../services/roles.guard';
 import { UsersService } from '../services/users.service';
 import { RolesService } from '../services/roles.service';
+import { RedisBlocklistService } from '../services/redis-blocklist.service';
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { RolesService } from '../services/roles.service';
       signOptions: { expiresIn: '15m' },
     }),
   ],
-  providers: [AuthService, JwtStrategy, RolesGuard, UsersService, RolesService],
+  providers: [AuthService, JwtStrategy, RolesGuard, UsersService, RolesService, RedisBlocklistService],
   controllers: [AuthController],
 })
 export class AuthModule {}

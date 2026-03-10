@@ -12,12 +12,14 @@ import { CommentsModule } from './modules/comments.module';
 import { SubscriptionModule } from './modules/subscription.module';
 import { RecommendationModule } from './modules/recommendation.module';
 import { AuthModule } from './modules/auth.module';
+import { RedisModule } from './modules/redis.module';
 
 @Module({
 
   imports: [
     ConfigModule.forRoot({ isGlobal: true }), 
     DatabaseModule,                          
+    RedisModule,
     UsersModule, 
     RolesModule,     
     FavoritesModule,
