@@ -13,15 +13,16 @@ import { SubscriptionModule } from './modules/subscription.module';
 import { RecommendationModule } from './modules/recommendation.module';
 import { AuthModule } from './modules/auth.module';
 import { RedisModule } from './modules/redis.module';
+import { CacheModule } from './modules/cache.module';
 
 @Module({
-
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }), 
-    DatabaseModule,                          
+    ConfigModule.forRoot({ isGlobal: true }),
+    DatabaseModule,
     RedisModule,
-    UsersModule, 
-    RolesModule,     
+    CacheModule,
+    UsersModule,
+    RolesModule,
     FavoritesModule,
     MoviesModule,
     GenresModule,
@@ -30,8 +31,7 @@ import { RedisModule } from './modules/redis.module';
     CommentsModule,
     SubscriptionModule,
     RecommendationModule,
-    AuthModule      
+    AuthModule,
   ],
-  
 })
 export class AppModule {}

@@ -3,10 +3,14 @@ import { views } from '../database/models/View';
 import { eq, and } from 'drizzle-orm';
 import { StartViewDto } from '../dto/start-view.dto';
 import { UpdateStopPositionDto } from '../dto/update-stop-position.dto';
+import { CacheService } from './cache.service';
 
 @Injectable()
 export class ViewsService {
-  constructor(@Inject('DB') private readonly db: any) {}
+  constructor(
+    @Inject('DB') private readonly db: any,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async startView(dto: StartViewDto) {
     const [view] = await this.db
@@ -14,10 +18,12 @@ export class ViewsService {
       .values({
         userId: dto.userId,
         movieId: dto.movieId,
-        viewDate: new Date(), // фиксируем дату начала просмотра
+        viewDate: new Date(),
         stopPosition: 0,
       })
       .returning();
+
+    await this.cacheService.delByPattern(`recommendations:*:${dto.userId}`);
     return view;
   }
 

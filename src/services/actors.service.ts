@@ -2,10 +2,14 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import { CreateActorDto } from '../dto/create-actor.dto';
 import { UpdateActorDto } from '../dto/update-actor.dto';
+import { CacheService, CACHE_KEYS, CACHE_TTL } from './cache.service';
 
 @Injectable()
 export class ActorsService {
-  constructor(@Inject('DB') private readonly db: any) {}
+  constructor(
+    @Inject('DB') private readonly db: any,
+    private readonly cacheService: CacheService,
+  ) {}
 
   // --- CREATE ---
   async createActor(dto: CreateActorDto) {
@@ -14,6 +18,8 @@ export class ActorsService {
       VALUES (${dto.firstName}, ${dto.lastName}, ${dto.birthDate}, ${dto.biography})
       RETURNING id, first_name AS "firstName", last_name AS "lastName", birth_date AS "birthDate", biography;
     `);
+
+    await this.cacheService.invalidateActorsCache();
     return result.rows[0];
   }
 
@@ -30,7 +36,10 @@ export class ActorsService {
       RETURNING id, first_name AS "firstName", last_name AS "lastName", birth_date AS "birthDate", biography;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Actor ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`Actor ${id} not found`);
+
+    await this.cacheService.invalidateActorsCache();
     return result.rows[0];
   }
 
@@ -42,7 +51,10 @@ export class ActorsService {
       RETURNING id, first_name AS "firstName", last_name AS "lastName", birth_date AS "birthDate", biography;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Actor ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`Actor ${id} not found`);
+
+    await this.cacheService.invalidateActorsCache();
     return result.rows[0];
   }
 
@@ -54,26 +66,39 @@ export class ActorsService {
       WHERE id = ${id};
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Actor ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`Actor ${id} not found`);
     return result.rows[0];
   }
 
   // --- FIND ALL ---
   async findAllActors() {
-    const result = await this.db.execute(sql`
-      SELECT id, first_name AS "firstName", last_name AS "lastName", birth_date AS "birthDate", biography
-      FROM "Actor"."actors";
-    `);
-    return result.rows;
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.ACTORS_LIST,
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT id, first_name AS "firstName", last_name AS "lastName", birth_date AS "birthDate", biography
+          FROM "Actor"."actors";
+        `);
+        return result.rows;
+      },
+      CACHE_TTL.ACTORS_LIST,
+    );
   }
 
   // --- ADD ACTOR TO MOVIE ---
-  async addActorToMovie(movieId: number, actorId: number, characterName: string) {
+  async addActorToMovie(
+    movieId: number,
+    actorId: number,
+    characterName: string,
+  ) {
     const result = await this.db.execute(sql`
       INSERT INTO "Movie_Actor"."movie_actors" (movie_id, actor_id, character_name)
       VALUES (${movieId}, ${actorId}, ${characterName})
       RETURNING id, movie_id AS "movieId", actor_id AS "actorId", character_name AS "characterName";
     `);
+
+    await this.cacheService.invalidateMoviesCache();
     return result.rows[0];
   }
 
@@ -85,54 +110,68 @@ export class ActorsService {
       RETURNING id, movie_id AS "movieId", actor_id AS "actorId", character_name AS "characterName";
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Actor ${actorId} not linked to movie ${movieId}`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(
+        `Actor ${actorId} not linked to movie ${movieId}`,
+      );
+
+    await this.cacheService.invalidateMoviesCache();
     return result.rows[0];
   }
 
   // --- GET ACTOR MOVIES ---
   async getActorMovies(actorId: number) {
-    const result = await this.db.execute(sql`
-      SELECT
-        m.id AS movie_id,
-        m.title,
-        m.release_year,
-        ma.character_name,
-        g.name AS genre_name
-      FROM "Movie_Actor"."movie_actors" ma
-      JOIN "Movie"."movies" m ON ma.movie_id = m.id
-      LEFT JOIN "Movie_Genre"."movie_genres" mg ON m.id = mg.movie_id
-      LEFT JOIN "Genre"."genres" g ON mg.genre_id = g.id
-      WHERE ma.actor_id = ${actorId};
-    `);
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.MOVIES_BY_ACTOR(actorId),
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT
+            m.id AS movie_id,
+            m.title,
+            m.release_year,
+            ma.character_name,
+            g.name AS genre_name
+          FROM "Movie_Actor"."movie_actors" ma
+          JOIN "Movie"."movies" m ON ma.movie_id = m.id
+          LEFT JOIN "Movie_Genre"."movie_genres" mg ON m.id = mg.movie_id
+          LEFT JOIN "Genre"."genres" g ON mg.genre_id = g.id
+          WHERE ma.actor_id = ${actorId};
+        `);
 
-    const rows = result.rows;
+        const rows = result.rows;
 
-    const grouped = new Map<number, {
-      id: number;
-      title: string;
-      releaseYear: number;
-      characterName: string;
-      genres: string[];
-    }>();
+        const grouped = new Map<
+          number,
+          {
+            id: number;
+            title: string;
+            releaseYear: number;
+            characterName: string;
+            genres: string[];
+          }
+        >();
 
-    for (const row of rows) {
-      const movieId = row.movie_id;
-      if (!grouped.has(movieId)) {
-        grouped.set(movieId, {
-          id: movieId,
-          title: row.title,
-          releaseYear: row.release_year,
-          characterName: row.character_name,
-          genres: row.genre_name ? [row.genre_name] : [],
-        });
-      } else {
-        const movie = grouped.get(movieId)!;
-        if (row.genre_name && !movie.genres.includes(row.genre_name)) {
-          movie.genres.push(row.genre_name);
+        for (const row of rows) {
+          const movieId = row.movie_id;
+          if (!grouped.has(movieId)) {
+            grouped.set(movieId, {
+              id: movieId,
+              title: row.title,
+              releaseYear: row.release_year,
+              characterName: row.character_name,
+              genres: row.genre_name ? [row.genre_name] : [],
+            });
+          } else {
+            const movie = grouped.get(movieId)!;
+            if (row.genre_name && !movie.genres.includes(row.genre_name)) {
+              movie.genres.push(row.genre_name);
+            }
+          }
         }
-      }
-    }
 
-    return Array.from(grouped.values());
+        return Array.from(grouped.values());
+      },
+      CACHE_TTL.MOVIES_BY_ACTOR,
+    );
   }
 }

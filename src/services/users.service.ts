@@ -6,10 +6,14 @@ import { AssignRoleDto } from 'src/dto/assign-role.dto';
 import { AssignSubscriptionDto } from 'src/dto/assign-subscription.dto';
 import { UpdateSubscriptionStatusDto } from 'src/dto/update-subscription-status.dto';
 import { sql } from 'drizzle-orm';
+import { CacheService, CACHE_KEYS, CACHE_TTL } from './cache.service';
 
 @Injectable()
 export class UsersService {
-  constructor(@Inject('DB') private readonly db: any) {}
+  constructor(
+    @Inject('DB') private readonly db: any,
+    private readonly cacheService: CacheService,
+  ) {}
 
   // --- USERS ---
   async createUser(dto: CreateUserDto) {
@@ -22,6 +26,7 @@ export class UsersService {
       RETURNING id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status;
     `);
 
+    await this.cacheService.invalidateUsersCache();
     return result.rows[0];
   }
 
@@ -36,23 +41,34 @@ export class UsersService {
   }
 
   async findAllUsers() {
-    const result = await this.db.execute(sql`
-      SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
-      FROM "User"."users";
-    `);
-    return result.rows;
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.USERS_LIST,
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
+          FROM "User"."users";
+        `);
+        return result.rows;
+      },
+      CACHE_TTL.USERS_LIST,
+    );
   }
 
   async findUserById(id: number) {
-    const result = await this.db.execute(sql`
-      SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
-      FROM "User"."users"
-      WHERE id = ${id};
-    `);
-
-    if (result.rows.length === 0)
-      throw new NotFoundException(`User with id ${id} not found`);
-    return result.rows[0];
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.USER(id),
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
+          FROM "User"."users"
+          WHERE id = ${id};
+        `);
+        if (result.rows.length === 0)
+          throw new NotFoundException(`User with id ${id} not found`);
+        return result.rows[0];
+      },
+      CACHE_TTL.USER_DETAILS,
+    );
   }
 
   async updateUser(id: number, dto: UpdateUserDto) {
@@ -74,6 +90,9 @@ export class UsersService {
 
     if (result.rows.length === 0)
       throw new NotFoundException(`User with id ${id} not found`);
+
+    await this.cacheService.invalidateUsersCache();
+    await this.cacheService.del(CACHE_KEYS.USER(id));
     return result.rows[0];
   }
 
@@ -86,6 +105,9 @@ export class UsersService {
 
     if (result.rows.length === 0)
       throw new NotFoundException(`User with id ${id} not found`);
+
+    await this.cacheService.invalidateUsersCache();
+    await this.cacheService.del(CACHE_KEYS.USER(id));
     return result.rows[0];
   }
 
@@ -96,6 +118,8 @@ export class UsersService {
       VALUES (${dto.userId}, ${dto.roleId})
       RETURNING *;
     `);
+
+    await this.cacheService.del(CACHE_KEYS.USER_ROLES(dto.userId));
     return result.rows[0];
   }
 
@@ -110,17 +134,25 @@ export class UsersService {
       throw new NotFoundException(
         `Role ${dto.roleId} not found for user ${dto.userId}`,
       );
+
+    await this.cacheService.del(CACHE_KEYS.USER_ROLES(dto.userId));
     return result.rows[0];
   }
 
   async getUserRoles(userId: number) {
-    const result = await this.db.execute(sql`
-      SELECT r.id AS "roleId", r.name AS "roleName", r.description
-      FROM "User_Role"."user_roles" ur
-      INNER JOIN "Role"."roles" r ON ur.role_id = r.id
-      WHERE ur.user_id = ${userId};
-    `);
-    return result.rows;
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.USER_ROLES(userId),
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT r.id AS "roleId", r.name AS "roleName", r.description
+          FROM "User_Role"."user_roles" ur
+          INNER JOIN "Role"."roles" r ON ur.role_id = r.id
+          WHERE ur.user_id = ${userId};
+        `);
+        return result.rows;
+      },
+      CACHE_TTL.ROLES_LIST,
+    );
   }
 
   // --- SUBSCRIPTIONS ---

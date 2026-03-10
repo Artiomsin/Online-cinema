@@ -3,10 +3,14 @@ import { sql } from 'drizzle-orm';
 import { AddFavoriteDto } from '../dto/add-favorite.dto';
 import { RemoveFavoriteDto } from '../dto/remove-favorite.dto';
 import { CheckFavoriteDto } from '../dto/check-favorite.dto';
+import { CacheService } from './cache.service';
 
 @Injectable()
 export class FavoritesService {
-  constructor(@Inject('DB') private readonly db: any) {}
+  constructor(
+    @Inject('DB') private readonly db: any,
+    private readonly cacheService: CacheService,
+  ) {}
 
   // --- ADD FAVORITE ---
   async addFavorite(dto: AddFavoriteDto & { userId: number }) {
@@ -16,6 +20,8 @@ export class FavoritesService {
       VALUES (${dto.userId}, ${dto.movieId}, ${today})
       RETURNING id, user_id AS "userId", movie_id AS "movieId", added_date AS "addedDate";
     `);
+
+    await this.cacheService.delByPattern(`recommendations:*:${dto.userId}`);
     return result.rows[0];
   }
 
@@ -32,6 +38,8 @@ export class FavoritesService {
         `Movie ${dto.movieId} not found in favorites for user ${dto.userId}`,
       );
     }
+
+    await this.cacheService.delByPattern(`recommendations:*:${dto.userId}`);
     return result.rows[0];
   }
 

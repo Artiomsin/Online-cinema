@@ -2,10 +2,14 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { CreateRoleDto } from '../dto/create-role.dto';
 import { UpdateRoleDto } from '../dto/update-role.dto';
 import { sql } from 'drizzle-orm';
+import { CacheService, CACHE_KEYS, CACHE_TTL } from './cache.service';
 
 @Injectable()
 export class RolesService {
-  constructor(@Inject('DB') private readonly db: any) {}
+  constructor(
+    @Inject('DB') private readonly db: any,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async createRole(dto: CreateRoleDto) {
     const result = await this.db.execute(sql`
@@ -13,15 +17,23 @@ export class RolesService {
       VALUES (${dto.name}, ${dto.description})
       RETURNING id, name, description;
     `);
+
+    await this.cacheService.invalidateRolesCache();
     return result.rows[0];
   }
 
   async findAllRoles() {
-    const result = await this.db.execute(sql`
-      SELECT id, name, description
-      FROM "Role"."roles";
-    `);
-    return result.rows;
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.ROLES_LIST,
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT id, name, description
+          FROM "Role"."roles";
+        `);
+        return result.rows;
+      },
+      CACHE_TTL.ROLES_LIST,
+    );
   }
 
   async findRoleById(id: number) {
@@ -50,6 +62,8 @@ export class RolesService {
     if (result.rows.length === 0) {
       throw new NotFoundException(`Role with id ${id} not found`);
     }
+
+    await this.cacheService.invalidateRolesCache();
     return result.rows[0];
   }
 
@@ -63,6 +77,8 @@ export class RolesService {
     if (result.rows.length === 0) {
       throw new NotFoundException(`Role with id ${id} not found`);
     }
+
+    await this.cacheService.invalidateRolesCache();
     return result.rows[0];
   }
 }
