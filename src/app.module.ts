@@ -12,14 +12,23 @@ import { CommentsModule } from './modules/comments.module';
 import { SubscriptionModule } from './modules/subscription.module';
 import { RecommendationModule } from './modules/recommendation.module';
 import { AuthModule } from './modules/auth.module';
+import { RedisModule } from './modules/redis.module';
+import { CacheModule } from './modules/cache.module';
+import { MongoDbModule } from './modules/mongodb.module';
+import { ActionLogModule } from './modules/action-log.module';
+import { SessionModule } from './modules/session.module';
 
 @Module({
-
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }), 
-    DatabaseModule,                          
-    UsersModule, 
-    RolesModule,     
+    ConfigModule.forRoot({ isGlobal: true }),
+    DatabaseModule,
+    MongoDbModule,
+    RedisModule,
+    CacheModule,
+    ActionLogModule,
+    SessionModule,
+    UsersModule,
+    RolesModule,
     FavoritesModule,
     MoviesModule,
     GenresModule,
@@ -28,8 +37,7 @@ import { AuthModule } from './modules/auth.module';
     CommentsModule,
     SubscriptionModule,
     RecommendationModule,
-    AuthModule      
+    AuthModule,
   ],
-  
 })
 export class AppModule {}

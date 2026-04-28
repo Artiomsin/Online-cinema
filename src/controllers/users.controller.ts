@@ -1,20 +1,32 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Patch, UseGuards, Req, UnauthorizedException, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  Patch,
+  UseGuards,
+  Req,
+  UnauthorizedException,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { UsersService } from '../services/users.service';
 import { CreateUserDto } from '../dto/create-user.dto';
-import { AssignRoleDto } from 'src/dto/assign-role.dto';
-import { AssignSubscriptionDto } from 'src/dto/assign-subscription.dto';
-import { UpdateSubscriptionStatusDto } from 'src/dto/update-subscription-status.dto';
+import { AssignRoleDto } from '../dto/assign-role.dto';
+import { AssignSubscriptionDto } from '../dto/assign-subscription.dto';
+import { UpdateSubscriptionStatusDto } from '../dto/update-subscription-status.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from 'src/services/roles.guard';
-import { Roles } from 'src/services/roles.decorator';
+import { RolesGuard } from '../services/roles.guard';
+import { Roles } from '../services/roles.decorator';
 
 @Controller('users')
 export class UsersController {
-
   constructor(private readonly usersService: UsersService) {}
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('user') 
+  @Roles('user')
   @Get('profile')
   async getOwnProfile(@Req() req: any) {
     const userId = Number(req.user.userId);
@@ -41,12 +53,14 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('user')
   @Post('subscriptions')
-  async assignSubscription(@Req() req: any, @Body() dto: AssignSubscriptionDto) {
+  async assignSubscription(
+    @Req() req: any,
+    @Body() dto: AssignSubscriptionDto,
+  ) {
     const userId = Number(req.user.userId);
     if (!userId) throw new UnauthorizedException('Некорректный userId');
     return this.usersService.assignSubscription({ ...dto, userId });
   }
-
 
   @Post()
   create(@Body() dto: CreateUserDto) {
@@ -74,9 +88,9 @@ export class UsersController {
   }
 
   @Post('roles')
-    assignRole(@Body() dto: AssignRoleDto) {
-      return this.usersService.assignRole(dto);
-    }
+  assignRole(@Body() dto: AssignRoleDto) {
+    return this.usersService.assignRole(dto);
+  }
 
   @Delete('roles')
   removeRole(@Body() dto: AssignRoleDto) {
@@ -87,8 +101,4 @@ export class UsersController {
   getUserRoles(@Param('id') userId: number) {
     return this.usersService.getUserRoles(userId);
   }
-
-
-
-
 }

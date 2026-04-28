@@ -1,4 +1,3 @@
-
 import { IsInt, IsString, IsOptional } from 'class-validator';
 
 export class CreateMovieDto {
@@ -43,6 +42,3 @@ export class CreateMovieDto {
   @IsString()
   posterUrl?: string;
 }
-
-
-

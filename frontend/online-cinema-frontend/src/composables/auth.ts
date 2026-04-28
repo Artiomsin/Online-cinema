@@ -12,7 +12,6 @@ export async function fetchProfile() {
 
     if (res.ok) {
       const data = await res.json()
-      // сохраняем только если реально есть профиль
       if (data?.profile) {
         profile.value = data.profile
         auth.value = true

@@ -1,5 +1,12 @@
-
-import { Controller, Post, Put, Delete, Get, Param, Body } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Put,
+  Delete,
+  Get,
+  Param,
+  Body,
+} from '@nestjs/common';
 import { SubscriptionService } from '../services/subscription.service';
 import { CreateSubscriptionDto } from '../dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from '../dto/update-subscription.dto';

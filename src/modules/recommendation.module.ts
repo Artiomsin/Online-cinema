@@ -4,7 +4,7 @@ import { RecommendationController } from '../controllers/recommendation.controll
 import { AuthModule } from './auth.module';
 
 @Module({
-  imports: [AuthModule], 
+  imports: [AuthModule],
   controllers: [RecommendationController],
   providers: [RecommendationService],
   exports: [RecommendationService],

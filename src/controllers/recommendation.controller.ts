@@ -6,14 +6,12 @@ import { AuthGuard } from '@nestjs/passport';
 export class RecommendationController {
   constructor(private readonly recommendationService: RecommendationService) {}
 
-  
   @UseGuards(AuthGuard('jwt'))
   @Get('favorites')
   async recommendByFavorites(@Req() req: any) {
     const userId = req.user.userId;
     return this.recommendationService.recommendMoviesByFavorites(userId);
   }
-
 
   @UseGuards(AuthGuard('jwt'))
   @Get('history')
@@ -34,4 +32,3 @@ export class RecommendationController {
     return this.recommendationService.getSimilarMovies(Number(movieId));
   }
 }
-

@@ -1,15 +1,46 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
-import { AssignRoleDto } from 'src/dto/assign-role.dto';
-import { AssignSubscriptionDto } from 'src/dto/assign-subscription.dto';
-import { UpdateSubscriptionStatusDto } from 'src/dto/update-subscription-status.dto';
+import { AssignRoleDto } from '../dto/assign-role.dto';
+import { AssignSubscriptionDto } from '../dto/assign-subscription.dto';
+import { UpdateSubscriptionStatusDto } from '../dto/update-subscription-status.dto';
 import { sql } from 'drizzle-orm';
+import { CacheService, CACHE_KEYS, CACHE_TTL } from './cache.service';
+import { ActionLogService } from './action-log.service';
+import { SessionService } from './session.service';
+import { UserActionType } from '../database/models/ActionLogMongo';
 
 @Injectable()
-export class UsersService {
-  constructor(@Inject('DB') private readonly db: any) {}
+export class UsersService implements OnModuleInit {
+  constructor(
+    @Inject('DB') private readonly db: any,
+    private readonly cacheService: CacheService,
+    private readonly actionLogService?: ActionLogService,
+    private readonly sessionService?: SessionService,
+  ) {}
+
+  async onModuleInit() {
+    if (this.sessionService) {
+      this.sessionService.subscribe('user_deleted', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 UsersService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.invalidateUsersCache();
+      });
+
+      this.sessionService.subscribe('user_updated', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 UsersService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.del(CACHE_KEYS.USER(data.data.userId));
+      });
+
+      this.sessionService.subscribe('user_created', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 UsersService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.invalidateUsersCache();
+      });
+    }
+  }
 
   // --- USERS ---
   async createUser(dto: CreateUserDto) {
@@ -22,30 +53,72 @@ export class UsersService {
       RETURNING id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status;
     `);
 
+    await this.cacheService.invalidateUsersCache();
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        undefined,
+        UserActionType.REGISTER,
+        `Создан пользователь: ${dto.email}`,
+        { userId: result.rows[0]?.id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('user_created', {
+        userId: result.rows[0]?.id,
+        login: dto.login,
+      });
+    }
+
+    return result.rows[0];
+  }
+
+  async findUserByLogin(login: string) {
+    const result = await this.db.execute(sql`
+      SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", 
+             last_name AS "lastName", email, registration_date AS "registrationDate", status
+      FROM "User"."users" 
+      WHERE login = ${login};
+    `);
     return result.rows[0];
   }
 
   async findAllUsers() {
-    const result = await this.db.execute(sql`
-      SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
-      FROM "User"."users";
-    `);
-    return result.rows;
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.USERS_LIST,
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
+          FROM "User"."users";
+        `);
+        return result.rows;
+      },
+      CACHE_TTL.USERS_LIST,
+    );
   }
 
   async findUserById(id: number) {
-    const result = await this.db.execute(sql`
-      SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
-      FROM "User"."users"
-      WHERE id = ${id};
-    `);
-
-    if (result.rows.length === 0) throw new NotFoundException(`User with id ${id} not found`);
-    return result.rows[0];
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.USER(id),
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status
+          FROM "User"."users"
+          WHERE id = ${id};
+        `);
+        if (result.rows.length === 0)
+          throw new NotFoundException(`User with id ${id} not found`);
+        return result.rows[0];
+      },
+      CACHE_TTL.USER_DETAILS,
+    );
   }
 
   async updateUser(id: number, dto: UpdateUserDto) {
-    const hashedPassword = dto.password ? await bcrypt.hash(dto.password, 10) : null;
+    const hashedPassword = dto.password
+      ? await bcrypt.hash(dto.password, 10)
+      : null;
 
     const result = await this.db.execute(sql`
       UPDATE "User"."users"
@@ -59,7 +132,28 @@ export class UsersService {
       RETURNING id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`User with id ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`User with id ${id} not found`);
+
+    await this.cacheService.invalidateUsersCache();
+    await this.cacheService.del(CACHE_KEYS.USER(id));
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        id,
+        UserActionType.UPDATE,
+        `Обновлён пользователь: ${result.rows[0].email}`,
+        { userId: id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('user_updated', {
+        userId: id,
+        login: result.rows[0].login,
+      });
+    }
+
     return result.rows[0];
   }
 
@@ -70,7 +164,25 @@ export class UsersService {
       RETURNING id, login, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", email, registration_date AS "registrationDate", status;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`User with id ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`User with id ${id} not found`);
+
+    await this.cacheService.invalidateUsersCache();
+    await this.cacheService.del(CACHE_KEYS.USER(id));
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        id,
+        UserActionType.DELETE,
+        `Удалён пользователь: ${result.rows[0].email}`,
+        { userId: id },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('user_deleted', { userId: id });
+    }
+
     return result.rows[0];
   }
 
@@ -81,6 +193,8 @@ export class UsersService {
       VALUES (${dto.userId}, ${dto.roleId})
       RETURNING *;
     `);
+
+    await this.cacheService.del(CACHE_KEYS.USER_ROLES(dto.userId));
     return result.rows[0];
   }
 
@@ -91,18 +205,29 @@ export class UsersService {
       RETURNING *;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Role ${dto.roleId} not found for user ${dto.userId}`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(
+        `Role ${dto.roleId} not found for user ${dto.userId}`,
+      );
+
+    await this.cacheService.del(CACHE_KEYS.USER_ROLES(dto.userId));
     return result.rows[0];
   }
 
   async getUserRoles(userId: number) {
-    const result = await this.db.execute(sql`
-      SELECT r.id AS "roleId", r.name AS "roleName", r.description
-      FROM "User_Role"."user_roles" ur
-      INNER JOIN "Role"."roles" r ON ur.role_id = r.id
-      WHERE ur.user_id = ${userId};
-    `);
-    return result.rows;
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.USER_ROLES(userId),
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT r.id AS "roleId", r.name AS "roleName", r.description
+          FROM "User_Role"."user_roles" ur
+          INNER JOIN "Role"."roles" r ON ur.role_id = r.id
+          WHERE ur.user_id = ${userId};
+        `);
+        return result.rows;
+      },
+      CACHE_TTL.ROLES_LIST,
+    );
   }
 
   // --- SUBSCRIPTIONS ---
@@ -146,20 +271,26 @@ export class UsersService {
     return subs.rows;
   }
 
-  async updateSubscriptionStatus(dto: { userId: number; userSubscriptionId: number; status: string }) {
-  const result = await this.db.execute(sql`
+  async updateSubscriptionStatus(dto: {
+    userId: number;
+    userSubscriptionId: number;
+    status: string;
+  }) {
+    const result = await this.db.execute(sql`
     UPDATE "User_Subscription"."user_subscriptions"
     SET status = ${dto.status}
     WHERE id = ${dto.userSubscriptionId} AND user_id = ${dto.userId}
     RETURNING *;
   `);
 
-  if (result.rows.length === 0) {
-    throw new NotFoundException(`Subscription ${dto.userSubscriptionId} not found for user ${dto.userId}`);
-  }
+    if (result.rows.length === 0) {
+      throw new NotFoundException(
+        `Subscription ${dto.userSubscriptionId} not found for user ${dto.userId}`,
+      );
+    }
 
-  return result.rows[0];
-}
+    return result.rows[0];
+  }
 
   // --- PROFILE & STATUS ---
   async getUserProfile(userId: number) {
@@ -169,12 +300,13 @@ export class UsersService {
       WHERE id = ${userId};
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Пользователь с id=${userId} не найден`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`Пользователь с id=${userId} не найден`);
     return result.rows[0];
   }
 
   async updateStatus(userId: number, status: boolean) {
-  const result = await this.db.execute(sql`
+    const result = await this.db.execute(sql`
     UPDATE "User"."users"
     SET status = ${status}
     WHERE id = ${userId}
@@ -183,10 +315,9 @@ export class UsersService {
               email, registration_date AS "registrationDate", status;
   `);
 
-  if (result.rows.length === 0) {
-    throw new NotFoundException(`User with id ${userId} not found`);
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`User with id ${userId} not found`);
+    }
+    return result.rows[0];
   }
-  return result.rows[0];
-}
-
 }

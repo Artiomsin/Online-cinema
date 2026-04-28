@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup lang='ts'>
 import { ref, inject } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -25,7 +25,11 @@ const submit = async () => {
     })
 
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data?.message || 'Login error')
+    let errorMsg = 'Login error'
+    if (data?.message) {
+      errorMsg = typeof data.message === 'string' ? data.message : data.message?.message || 'Login error'
+    }
+    if (!res.ok) throw new Error(errorMsg)
 
     auth.value = true
     await fetchProfile()
@@ -39,22 +43,22 @@ const submit = async () => {
 </script>
 
 <template>
-  <div class="auth-wrap">
-    <form class="auth-card" @submit.prevent="submit">
+  <div class='auth-wrap'>
+    <form class='auth-card' @submit.prevent='submit'>
       <h2>Login</h2>
-      <p class="muted">Enter your login details</p>
+      <p class='muted'>Enter your login details</p>
 
-      <label class="field">
-        <input v-model="login" type="text" placeholder="Username" required />
+      <label class='field'>
+        <input v-model='login' type='text' placeholder='Username' required />
       </label>
 
-      <label class="field">
-        <input v-model="password" type="password" placeholder="Password" required />
+      <label class='field'>
+        <input v-model='password' type='password' placeholder='Password' required />
       </label>
 
-      <div v-if="error" class="error">{{ error }}</div>
+      <div v-if='error' class='error'>{{ error }}</div>
 
-      <button class="btn" :disabled="loading">{{ loading ? 'Processing...' : 'Login' }}</button>
+      <button class='btn' :disabled='loading'>{{ loading ? 'Processing...' : 'Login' }}</button>
     </form>
   </div>
 </template>

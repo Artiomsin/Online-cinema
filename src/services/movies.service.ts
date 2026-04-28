@@ -1,14 +1,52 @@
-import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
-import { movies, movieGenres, genres, movieActors, actors } from '../database/schema';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  BadRequestException,
+  OnModuleInit,
+} from '@nestjs/common';
+import {
+  movies,
+  movieGenres,
+  genres,
+  movieActors,
+  actors,
+} from '../database/schema';
 import { eq, ilike, inArray, sql } from 'drizzle-orm';
 import { CreateMovieDto } from '../dto/create-movie.dto';
 import { UpdateMovieDto } from '../dto/update-movie.dto';
+import { CacheService, CACHE_KEYS, CACHE_TTL } from './cache.service';
+import { ActionLogService } from './action-log.service';
+import { SessionService } from './session.service';
+import { UserActionType } from '../database/models/ActionLogMongo';
 
 @Injectable()
-export class MoviesService {
-  constructor(@Inject('DB') private readonly db: any) {}
+export class MoviesService implements OnModuleInit {
+  constructor(
+    @Inject('DB') private readonly db: any,
+    private readonly cacheService: CacheService,
+    private readonly actionLogService?: ActionLogService,
+    private readonly sessionService?: SessionService,
+  ) {}
 
-  async createMovie(dto: CreateMovieDto) {
+  async onModuleInit() {
+    if (this.sessionService) {
+      this.sessionService.subscribe('movie_deleted', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 MoviesService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.del(CACHE_KEYS.MOVIE(data.data.movieId));
+        await this.cacheService.invalidateMoviesCache();
+      });
+
+      this.sessionService.subscribe('movie_updated', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 MoviesService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.del(CACHE_KEYS.MOVIE(data.data.movieId));
+      });
+    }
+  }
+
+  async createMovie(dto: CreateMovieDto, userId?: number) {
     const result = await this.db.execute(sql`
       INSERT INTO "Movie"."movies"
         (title, release_year, description, original_language, production_country,
@@ -30,10 +68,29 @@ export class MoviesService {
       )
       RETURNING *;
     `);
+
+    await this.cacheService.invalidateMoviesCache();
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        userId,
+        UserActionType.CREATE,
+        `Создан фильм: ${dto.title}`,
+        { movieId: result.rows[0]?.id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('movie_created', {
+        movieId: result.rows[0]?.id,
+        title: dto.title,
+      });
+    }
+
     return result.rows[0];
   }
 
-  async updateMovie(id: number, dto: UpdateMovieDto) {
+  async updateMovie(id: number, dto: UpdateMovieDto, userId?: number) {
     const result = await this.db.execute(sql`
       UPDATE "Movie"."movies"
       SET 
@@ -53,75 +110,125 @@ export class MoviesService {
       RETURNING *;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Movie ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`Movie ${id} not found`);
+
+    await this.cacheService.invalidateMoviesCache();
+    await this.cacheService.del(CACHE_KEYS.MOVIE(id));
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        userId,
+        UserActionType.UPDATE,
+        `Обновлён фильм: ${result.rows[0].title}`,
+        { movieId: id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('movie_updated', {
+        movieId: id,
+        title: result.rows[0].title,
+      });
+    }
+
     return result.rows[0];
   }
 
-   async deleteMovie(id: number) {
+  async deleteMovie(id: number, userId?: number) {
     const result = await this.db.execute(sql`
       DELETE FROM "Movie"."movies"
       WHERE id = ${id}
       RETURNING *;
     `);
 
-    if (result.rows.length === 0) throw new NotFoundException(`Movie ${id} not found`);
+    if (result.rows.length === 0)
+      throw new NotFoundException(`Movie ${id} not found`);
+
+    await this.cacheService.invalidateMoviesCache();
+    await this.cacheService.del(CACHE_KEYS.MOVIE(id));
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        userId,
+        UserActionType.DELETE,
+        `Удалён фильм: ${result.rows[0].title}`,
+        { movieId: id },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('movie_deleted', { movieId: id });
+    }
+
+    return result.rows[0];
+
     return result.rows[0];
   }
 
   async findMovieById(id: number) {
-  const result = await this.db.execute(sql`
-    SELECT 
-      id,
-      title,
-      release_year AS "releaseYear",
-      description,
-      original_language AS "originalLanguage",
-      production_country AS "productionCountry",
-      age_rating AS "ageRating",
-      duration,
-      subscription_level AS "subscriptionLevel",
-      video_url_480 AS "videoUrl480",
-      video_url_720 AS "videoUrl720",
-      video_url_1080 AS "videoUrl1080",
-      poster_url AS "posterUrl"
-    FROM "Movie"."movies"
-    WHERE id = ${id};
-  `);
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.MOVIE(id),
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT 
+            id,
+            title,
+            release_year AS "releaseYear",
+            description,
+            original_language AS "originalLanguage",
+            production_country AS "productionCountry",
+            age_rating AS "ageRating",
+            duration,
+            subscription_level AS "subscriptionLevel",
+            video_url_480 AS "videoUrl480",
+            video_url_720 AS "videoUrl720",
+            video_url_1080 AS "videoUrl1080",
+            poster_url AS "posterUrl"
+          FROM "Movie"."movies"
+          WHERE id = ${id};
+        `);
 
-  if (result.rows.length === 0) {
-    throw new NotFoundException(`Movie ${id} not found`);
+        if (result.rows.length === 0) {
+          throw new NotFoundException(`Movie ${id} not found`);
+        }
+
+        return result.rows[0];
+      },
+      CACHE_TTL.MOVIE_DETAILS,
+    );
   }
 
-  return result.rows[0];
-}
-
-
-
   async findAllMovies() {
-  const result = await this.db.execute(sql`
-    SELECT 
-      id,
-      title,
-      release_year AS "releaseYear",
-      description,
-      original_language AS "originalLanguage",
-      production_country AS "productionCountry",
-      age_rating AS "ageRating",
-      duration,
-      subscription_level AS "subscriptionLevel",
-      video_url_480 AS "videoUrl480",
-      video_url_720 AS "videoUrl720",
-      video_url_1080 AS "videoUrl1080",
-      poster_url AS "posterUrl"
-    FROM "Movie"."movies";
-  `);
-  return result.rows;
-}
-
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.MOVIES_LIST,
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT 
+            id,
+            title,
+            release_year AS "releaseYear",
+            description,
+            original_language AS "originalLanguage",
+            production_country AS "productionCountry",
+            age_rating AS "ageRating",
+            duration,
+            subscription_level AS "subscriptionLevel",
+            video_url_480 AS "videoUrl480",
+            video_url_720 AS "videoUrl720",
+            video_url_1080 AS "videoUrl1080",
+            poster_url AS "posterUrl"
+          FROM "Movie"."movies";
+        `);
+        return result.rows;
+      },
+      CACHE_TTL.MOVIES_LIST,
+    );
+  }
 
   // --- Поиск по названию ---
-async searchMoviesByTitle(title: string) {
-  const result = await this.db.execute(sql`
+  async searchMoviesByTitle(title: string) {
+    const result = await this.db.execute(sql`
     SELECT 
       id,
       title,
@@ -139,36 +246,42 @@ async searchMoviesByTitle(title: string) {
     FROM "Movie"."movies"
     WHERE title ILIKE ${'%' + title + '%'};
   `);
-  return result.rows;
-}
+    return result.rows;
+  }
 
-// --- Фильтрация по жанру ---
-async filterMoviesByGenre(genreId: number) {
-  const result = await this.db.execute(sql`
-    SELECT 
-      m.id,
-      m.title,
-      m.release_year AS "releaseYear",
-      m.description,
-      m.original_language AS "originalLanguage",
-      m.production_country AS "productionCountry",
-      m.age_rating AS "ageRating",
-      m.duration,
-      m.subscription_level AS "subscriptionLevel",
-      m.video_url_480 AS "videoUrl480",
-      m.video_url_720 AS "videoUrl720",
-      m.video_url_1080 AS "videoUrl1080",
-      m.poster_url AS "posterUrl"
-    FROM "Movie_Genre"."movie_genres" mg
-    INNER JOIN "Movie"."movies" m ON mg.movie_id = m.id
-    WHERE mg.genre_id = ${genreId};
-  `);
-  return result.rows;
-}
+  // --- Фильтрация по жанру ---
+  async filterMoviesByGenre(genreId: number) {
+    return this.cacheService.getOrSet(
+      CACHE_KEYS.MOVIES_BY_GENRE(genreId),
+      async () => {
+        const result = await this.db.execute(sql`
+          SELECT 
+            m.id,
+            m.title,
+            m.release_year AS "releaseYear",
+            m.description,
+            m.original_language AS "originalLanguage",
+            m.production_country AS "productionCountry",
+            m.age_rating AS "ageRating",
+            m.duration,
+            m.subscription_level AS "subscriptionLevel",
+            m.video_url_480 AS "videoUrl480",
+            m.video_url_720 AS "videoUrl720",
+            m.video_url_1080 AS "videoUrl1080",
+            m.poster_url AS "posterUrl"
+          FROM "Movie_Genre"."movie_genres" mg
+          INNER JOIN "Movie"."movies" m ON mg.movie_id = m.id
+          WHERE mg.genre_id = ${genreId};
+        `);
+        return result.rows;
+      },
+      CACHE_TTL.MOVIES_BY_GENRE,
+    );
+  }
 
-// --- Фильтрация по языку и стране ---
-async filterMoviesByRegion(language?: string, country?: string) {
-  let query = sql`
+  // --- Фильтрация по языку и стране ---
+  async filterMoviesByRegion(language?: string, country?: string) {
+    let query = sql`
     SELECT 
       id,
       title,
@@ -186,27 +299,27 @@ async filterMoviesByRegion(language?: string, country?: string) {
     FROM "Movie"."movies"
     WHERE TRUE
   `;
-  if (language) query = sql`${query} AND original_language = ${language}`;
-  if (country) query = sql`${query} AND production_country = ${country}`;
+    if (language) query = sql`${query} AND original_language = ${language}`;
+    if (country) query = sql`${query} AND production_country = ${country}`;
 
-  const result = await this.db.execute(query);
-  return result.rows;
-}
+    const result = await this.db.execute(query);
+    return result.rows;
+  }
 
-// --- Жанры для фильма ---
-async getGenresForMovie(movieId: number) {
-  const result = await this.db.execute(sql`
+  // --- Жанры для фильма ---
+  async getGenresForMovie(movieId: number) {
+    const result = await this.db.execute(sql`
     SELECT g.*
     FROM "Movie_Genre"."movie_genres" mg
     INNER JOIN "Genre"."genres" g ON mg.genre_id = g.id
     WHERE mg.movie_id = ${movieId};
   `);
-  return result.rows;
-}
+    return result.rows;
+  }
 
-// --- Актёры для фильма ---
-async getActorsForMovie(movieId: number) {
-  const result = await this.db.execute(sql`
+  // --- Актёры для фильма ---
+  async getActorsForMovie(movieId: number) {
+    const result = await this.db.execute(sql`
     SELECT 
       a.id,
       a.first_name AS "firstName",
@@ -216,16 +329,16 @@ async getActorsForMovie(movieId: number) {
     INNER JOIN "Actor"."actors" a ON ma.actor_id = a.id
     WHERE ma.movie_id = ${movieId};
   `);
-  return result.rows;
-}
-
-// --- Фильтрация по году ---
-async filterMoviesByYear(year: number) {
-  if (year < 1888 || year > new Date().getFullYear()) {
-    throw new BadRequestException('Некорректный год выпуска');
+    return result.rows;
   }
 
-  const result = await this.db.execute(sql`
+  // --- Фильтрация по году ---
+  async filterMoviesByYear(year: number) {
+    if (year < 1888 || year > new Date().getFullYear()) {
+      throw new BadRequestException('Некорректный год выпуска');
+    }
+
+    const result = await this.db.execute(sql`
     SELECT 
       id,
       title,
@@ -244,8 +357,6 @@ async filterMoviesByYear(year: number) {
     WHERE release_year = ${year};
   `);
 
-  return result.rows;
-}
-
-
+    return result.rows;
+  }
 }

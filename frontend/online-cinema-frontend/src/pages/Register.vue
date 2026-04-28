@@ -34,7 +34,11 @@ const submit = async () => {
     })
 
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data?.message || 'Registration error')
+    let errorMsg = 'Registration error'
+    if (data?.message) {
+      errorMsg = typeof data.message === 'string' ? data.message : data.message?.message || 'Registration error'
+    }
+    if (!res.ok) throw new Error(errorMsg)
 
     auth.value = true
     await fetchProfile()
