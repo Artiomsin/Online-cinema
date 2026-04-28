@@ -100,4 +100,8 @@ export class CacheService {
   async invalidateMovieCache(movieId: number): Promise<void> {
     await this.del(CACHE_KEYS.MOVIE(movieId));
   }
+
+  async invalidateFavoritesCache(userId: number): Promise<void> {
+    await this.delByPattern(`favorites:*:${userId}`);
+  }
 }

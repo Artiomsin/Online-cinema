@@ -7,11 +7,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - '${POSTGRES_PORT}:5432'
     volumes:
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
       - cinema_pgdata:/var/lib/postgresql/data
-      
+
   cinema-admin:
     image: dpage/pgadmin4
     container_name: cinema-admin
@@ -19,16 +19,25 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
     ports:
-      - "${PGADMIN_PORT}:80"
+      - '${PGADMIN_PORT}:80'
 
   cinema-redis:
     image: redis:7-alpine
     container_name: cinema-redis
     ports:
-      - "${REDIS_PORT}:6379"
+      - '${REDIS_PORT}:6379'
     volumes:
       - cinema_redisdata:/data
+
+  cinema-mongo:
+    image: mongo:7
+    container_name: cinema-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - cinema_mongodata:/data/db
 
 volumes:
   cinema_pgdata:
   cinema_redisdata:
+  cinema_mongodata:

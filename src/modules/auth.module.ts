@@ -7,6 +7,8 @@ import { RolesGuard } from '../services/roles.guard';
 import { UsersService } from '../services/users.service';
 import { RolesService } from '../services/roles.service';
 import { RedisBlocklistService } from '../services/redis-blocklist.service';
+import { ActionLogModule } from './action-log.module';
+import { SessionModule } from './session.module';
 
 @Module({
   imports: [
@@ -14,8 +16,17 @@ import { RedisBlocklistService } from '../services/redis-blocklist.service';
       secret: 'your_jwt_secret',
       signOptions: { expiresIn: '15m' },
     }),
+    ActionLogModule,
+    SessionModule,
   ],
-  providers: [AuthService, JwtStrategy, RolesGuard, UsersService, RolesService, RedisBlocklistService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    RolesGuard,
+    UsersService,
+    RolesService,
+    RedisBlocklistService,
+  ],
   controllers: [AuthController],
 })
 export class AuthModule {}

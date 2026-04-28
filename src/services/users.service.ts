@@ -1,19 +1,46 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
-import { AssignRoleDto } from 'src/dto/assign-role.dto';
-import { AssignSubscriptionDto } from 'src/dto/assign-subscription.dto';
-import { UpdateSubscriptionStatusDto } from 'src/dto/update-subscription-status.dto';
+import { AssignRoleDto } from '../dto/assign-role.dto';
+import { AssignSubscriptionDto } from '../dto/assign-subscription.dto';
+import { UpdateSubscriptionStatusDto } from '../dto/update-subscription-status.dto';
 import { sql } from 'drizzle-orm';
 import { CacheService, CACHE_KEYS, CACHE_TTL } from './cache.service';
+import { ActionLogService } from './action-log.service';
+import { SessionService } from './session.service';
+import { UserActionType } from '../database/models/ActionLogMongo';
 
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleInit {
   constructor(
     @Inject('DB') private readonly db: any,
     private readonly cacheService: CacheService,
+    private readonly actionLogService?: ActionLogService,
+    private readonly sessionService?: SessionService,
   ) {}
+
+  async onModuleInit() {
+    if (this.sessionService) {
+      this.sessionService.subscribe('user_deleted', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 UsersService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.invalidateUsersCache();
+      });
+
+      this.sessionService.subscribe('user_updated', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 UsersService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.del(CACHE_KEYS.USER(data.data.userId));
+      });
+
+      this.sessionService.subscribe('user_created', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 UsersService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.invalidateUsersCache();
+      });
+    }
+  }
 
   // --- USERS ---
   async createUser(dto: CreateUserDto) {
@@ -27,6 +54,23 @@ export class UsersService {
     `);
 
     await this.cacheService.invalidateUsersCache();
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        undefined,
+        UserActionType.REGISTER,
+        `Создан пользователь: ${dto.email}`,
+        { userId: result.rows[0]?.id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('user_created', {
+        userId: result.rows[0]?.id,
+        login: dto.login,
+      });
+    }
+
     return result.rows[0];
   }
 
@@ -93,6 +137,23 @@ export class UsersService {
 
     await this.cacheService.invalidateUsersCache();
     await this.cacheService.del(CACHE_KEYS.USER(id));
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        id,
+        UserActionType.UPDATE,
+        `Обновлён пользователь: ${result.rows[0].email}`,
+        { userId: id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('user_updated', {
+        userId: id,
+        login: result.rows[0].login,
+      });
+    }
+
     return result.rows[0];
   }
 
@@ -108,6 +169,20 @@ export class UsersService {
 
     await this.cacheService.invalidateUsersCache();
     await this.cacheService.del(CACHE_KEYS.USER(id));
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        id,
+        UserActionType.DELETE,
+        `Удалён пользователь: ${result.rows[0].email}`,
+        { userId: id },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('user_deleted', { userId: id });
+    }
+
     return result.rows[0];
   }
 

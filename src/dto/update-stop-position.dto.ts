@@ -8,5 +8,5 @@ export class UpdateStopPositionDto {
   movieId: number;
 
   @IsInt()
-  position: number; 
+  position: number;
 }

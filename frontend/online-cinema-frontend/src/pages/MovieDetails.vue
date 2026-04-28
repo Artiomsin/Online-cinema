@@ -21,6 +21,20 @@ const isFavorite = ref<boolean>(false)
 const recommendedByFavorites = ref<any[]>([])
 const recommendedByHistory = ref<any[]>([])
 const newInFavoriteGenres = ref<any[]>([])
+const currentUser = ref<any>(null)
+
+
+async function getCurrentUser() {
+  try {
+    const res = await fetch(`${API_BASE}/users/profile`, { credentials: 'include' })
+    if (res.ok) {
+      const data = await res.json()
+      currentUser.value = data.currentUser
+    }
+  } catch (e) {
+    // пользователь не авторизован
+  }
+}
 
 
 
@@ -160,9 +174,12 @@ async function loadMovieAndSimilar(id: number) {
   await loadComments(id)
 }
 
-onMounted(() => {
+onMounted(async () => {
   const id = Number(route.params.id)
-  if (!Number.isNaN(id)) loadMovieAndSimilar(id)
+  if (!Number.isNaN(id)) {
+    await getCurrentUser()
+    loadMovieAndSimilar(id)
+  }
 })
 
 watch(
@@ -176,7 +193,24 @@ watch(
   }
 )
 
-function play(url: string) {
+async function play(url: string, movieId: number) {
+  // Если пользователь авторизован - отправляем запрос на сервер
+  if (currentUser.value?.userId) {
+    try {
+      await fetch(`${API_BASE}/views`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.value.userId,
+          movieId: movieId
+        })
+      })
+    } catch (e) {
+      console.error('Failed to start view:', e)
+    }
+  }
+  // Показываем видео
   currentVideo.value = url
 }
 
@@ -251,9 +285,9 @@ function openMovie(id: number) {
           <h3>Watch Online:</h3>
           <div v-if="hasAccess(movie.subscriptionLevel)">
           <div class="buttons">
-            <button v-if="movie.videoUrl480" class="btn quality-480" @click="play(movie.videoUrl480)">480p</button>
-            <button v-if="movie.videoUrl720" class="btn quality-720" @click="play(movie.videoUrl720)">720p</button>
-            <button v-if="movie.videoUrl1080" class="btn quality-1080" @click="play(movie.videoUrl1080)">1080p</button>
+            <button v-if="movie.videoUrl480" class="btn quality-480" @click="play(movie.videoUrl480, movie.id)">480p</button>
+            <button v-if="movie.videoUrl720" class="btn quality-720" @click="play(movie.videoUrl720, movie.id)">720p</button>
+            <button v-if="movie.videoUrl1080" class="btn quality-1080" @click="play(movie.videoUrl1080, movie.id)">1080p</button>
           </div>
 
           

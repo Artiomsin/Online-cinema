@@ -215,4 +215,104 @@
 | Фильмы по жанру/актёру     | 600с (10 мин)  |
 | Аналитика (рекомендации)   | 1800с (30 мин) |
 
+---
 
+# 🗄️ Логирование в MongoDB
+
+## Назначение
+
+Журналирование действий пользователей и системных событий перенесено в MongoDB для:
+
+- Централизованного хранения логов
+- Автоматического удаления старых записей (TTL)
+- Гибкой фильтрации и поиска
+
+## Реализация
+
+### Что логируется:
+
+| Тип события        | Источник         | Описание                     |
+| ------------------ | ---------------- | ---------------------------- |
+| Вход пользователя  | AuthService      | Успешный вход в систему      |
+| Выход пользователя | AuthService      | Выход из системы             |
+| Регистрация        | AuthService      | Создание нового пользователя |
+| Ошибки             | Exception Filter | Все HTTP ошибки              |
+| Запросы к БД       | Middleware       | Медленные запросы (>100ms)   |
+
+### Модель данных (MongoDB):
+
+```typescript
+{
+  type: 'user_action' | 'error',
+  level: 'info' | 'warn' | 'error',
+  action: 'login' | 'logout' | 'register' | 'create' | 'update' | 'delete',
+  userId: number,
+  message: string,
+  metadata: object,
+  ipAddress: string,
+  userAgent: string,
+  timestamp: Date
+}
+```
+
+### TTL-индексы:
+
+| Индекс    | Время жизни           |
+| --------- | --------------------- |
+| timestamp | 30 дней (2592000 сек) |
+
+### Дополнительные индексы:
+
+- `userId + timestamp` - поиск по пользователю
+- `type + timestamp` - поиск по типу
+- `level + timestamp` - поиск по уровню
+- `action + timestamp` - поиск по действию
+
+## API для работы с логами:
+
+| Метод                    | Описание                      |
+| ------------------------ | ----------------------------- |
+| `GET /logs`              | Получить логи с фильтрацией   |
+| `GET /logs/recent`       | Последние логи                |
+| `GET /logs/errors`       | Только ошибки                 |
+| `GET /logs/user/:userId` | Логи конкретного пользователя |
+
+### Параметры фильтрации:
+
+```
+GET /logs?type=user_action&level=info&startDate=2026-01-01&endDate=2026-03-10&limit=50
+```
+
+- `userId` - ID пользователя
+- `type` - тип события (user_action, system_event, db_query, error)
+- `level` - уровень (info, warn, error)
+- `action` - действие (login, logout, register, create, update, delete)
+- `startDate` - начальная дата
+- `endDate` - конечная дата
+- `limit` - количество записей (по умолчанию 50)
+- `offset` - смещение
+
+## Подключение MongoDB:
+
+MongoDB запускается через docker-compose:
+
+```bash
+docker compose up -d cinema-mongo
+```
+
+Порт: 27017
+
+
+
+
+HIGH_ACTIVITY	>30 действий/час	Подозрительно высокая активность
+HIGH_ERROR_RATE	>50% ошибок	Большой процент ошибок
+REPEAT_ACTIONS	>6 одинаковых действий/час	Повторяющиеся действия
+RAPID_CONTENT_ACCESS	>20 разных действий/час	Возможный скрипт/бот
+
+
+docker exec cinema-redis redis-cli KEYS "session:*"
+docker exec cinema-redis redis-cli GET "session:51"
+docker exec cinema-redis redis-cli TTL "session:51"
+docker exec cinema-redis redis-cli PUBSUB CHANNELS
+docker exec cinema-redis redis-cli PUBSUB NUMSUB "data-changes"

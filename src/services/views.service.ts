@@ -4,12 +4,18 @@ import { eq, and } from 'drizzle-orm';
 import { StartViewDto } from '../dto/start-view.dto';
 import { UpdateStopPositionDto } from '../dto/update-stop-position.dto';
 import { CacheService } from './cache.service';
+import { ActionLogService } from './action-log.service';
+import { UserActionType } from '../database/models/ActionLogMongo';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class ViewsService {
+  private readonly logger = new Logger(ViewsService.name);
+
   constructor(
     @Inject('DB') private readonly db: any,
     private readonly cacheService: CacheService,
+    private readonly actionLogService: ActionLogService,
   ) {}
 
   async startView(dto: StartViewDto) {
@@ -24,6 +30,27 @@ export class ViewsService {
       .returning();
 
     await this.cacheService.delByPattern(`recommendations:*:${dto.userId}`);
+
+    if (this.actionLogService) {
+      try {
+        const result = await this.actionLogService.logUserAction(
+          dto.userId,
+          UserActionType.VIEW,
+          `Started watching movie: ${dto.movieId}`,
+          { movieId: dto.movieId },
+        );
+        this.logger.log(
+          `View logged for user ${dto.userId}, movie ${dto.movieId}, result: ${result?._id}`,
+        );
+      } catch (e) {
+        this.logger.error(
+          `Failed to log view: ${e.message}, stack: ${e.stack}`,
+        );
+      }
+    } else {
+      this.logger.warn(`ActionLogService is not injected!`);
+    }
+
     return view;
   }
 

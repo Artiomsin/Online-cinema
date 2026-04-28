@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   BadRequestException,
+  OnModuleInit,
 } from '@nestjs/common';
 import {
   movies,
@@ -15,15 +16,37 @@ import { eq, ilike, inArray, sql } from 'drizzle-orm';
 import { CreateMovieDto } from '../dto/create-movie.dto';
 import { UpdateMovieDto } from '../dto/update-movie.dto';
 import { CacheService, CACHE_KEYS, CACHE_TTL } from './cache.service';
+import { ActionLogService } from './action-log.service';
+import { SessionService } from './session.service';
+import { UserActionType } from '../database/models/ActionLogMongo';
 
 @Injectable()
-export class MoviesService {
+export class MoviesService implements OnModuleInit {
   constructor(
     @Inject('DB') private readonly db: any,
     private readonly cacheService: CacheService,
+    private readonly actionLogService?: ActionLogService,
+    private readonly sessionService?: SessionService,
   ) {}
 
-  async createMovie(dto: CreateMovieDto) {
+  async onModuleInit() {
+    if (this.sessionService) {
+      this.sessionService.subscribe('movie_deleted', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 MoviesService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.del(CACHE_KEYS.MOVIE(data.data.movieId));
+        await this.cacheService.invalidateMoviesCache();
+      });
+
+      this.sessionService.subscribe('movie_updated', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 MoviesService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.del(CACHE_KEYS.MOVIE(data.data.movieId));
+      });
+    }
+  }
+
+  async createMovie(dto: CreateMovieDto, userId?: number) {
     const result = await this.db.execute(sql`
       INSERT INTO "Movie"."movies"
         (title, release_year, description, original_language, production_country,
@@ -47,10 +70,27 @@ export class MoviesService {
     `);
 
     await this.cacheService.invalidateMoviesCache();
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        userId,
+        UserActionType.CREATE,
+        `Создан фильм: ${dto.title}`,
+        { movieId: result.rows[0]?.id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('movie_created', {
+        movieId: result.rows[0]?.id,
+        title: dto.title,
+      });
+    }
+
     return result.rows[0];
   }
 
-  async updateMovie(id: number, dto: UpdateMovieDto) {
+  async updateMovie(id: number, dto: UpdateMovieDto, userId?: number) {
     const result = await this.db.execute(sql`
       UPDATE "Movie"."movies"
       SET 
@@ -75,10 +115,27 @@ export class MoviesService {
 
     await this.cacheService.invalidateMoviesCache();
     await this.cacheService.del(CACHE_KEYS.MOVIE(id));
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        userId,
+        UserActionType.UPDATE,
+        `Обновлён фильм: ${result.rows[0].title}`,
+        { movieId: id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('movie_updated', {
+        movieId: id,
+        title: result.rows[0].title,
+      });
+    }
+
     return result.rows[0];
   }
 
-  async deleteMovie(id: number) {
+  async deleteMovie(id: number, userId?: number) {
     const result = await this.db.execute(sql`
       DELETE FROM "Movie"."movies"
       WHERE id = ${id}
@@ -90,6 +147,22 @@ export class MoviesService {
 
     await this.cacheService.invalidateMoviesCache();
     await this.cacheService.del(CACHE_KEYS.MOVIE(id));
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        userId,
+        UserActionType.DELETE,
+        `Удалён фильм: ${result.rows[0].title}`,
+        { movieId: id },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('movie_deleted', { movieId: id });
+    }
+
+    return result.rows[0];
+
     return result.rows[0];
   }
 

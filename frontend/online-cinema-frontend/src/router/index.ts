@@ -8,6 +8,7 @@ import ActorDetails from '../pages/ActorDetails.vue'
 import Subscriptions from '../pages/Subscriptions.vue'
 import Favorites from '../pages/Favorites.vue'
 import AdminUsers from '../pages/AdminUsers.vue'
+import AdminLogs from '../pages/AdminLogs.vue'
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
@@ -19,6 +20,7 @@ const routes = [
   { path: '/subscriptions', name: 'Subscriptions', component: Subscriptions },
   { path: '/favorites', name: 'Favorites', component: Favorites },
   { path: '/admin', name: 'Admin', component: AdminUsers },
+  { path: '/admin/logs', name: 'AdminLogs', component: AdminLogs },
 ]
 
 export const router = createRouter({

@@ -1,10 +1,17 @@
-
-import { Controller, Post, Get, Param, Body, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  Body,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { CommentsService } from '../services/comments.service';
 import { AddCommentDto } from '../dto/add-comment.dto';
-import { Roles } from 'src/services/roles.decorator';
+import { Roles } from '../services/roles.decorator';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from 'src/services/roles.guard';
+import { RolesGuard } from '../services/roles.guard';
 
 @Controller('comments')
 export class CommentsController {
@@ -20,7 +27,6 @@ export class CommentsController {
       userId,
     });
   }
-
 
   @Get('movie/:movieId')
   getCommentsByMovie(@Param('movieId') movieId: number) {

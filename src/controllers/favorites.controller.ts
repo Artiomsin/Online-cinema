@@ -1,4 +1,13 @@
-import { Controller, Post, Delete, Get, Body, Param, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Delete,
+  Get,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { FavoritesService } from '../services/favorites.service';
 import { AddFavoriteDto } from '../dto/add-favorite.dto';
 import { RemoveFavoriteDto } from '../dto/remove-favorite.dto';
@@ -17,12 +26,11 @@ export class FavoritesController {
   }
 
   @UseGuards(AuthGuard('jwt'))
-@Delete()
-async removeFavorite(@Req() req: any, @Body() dto: RemoveFavoriteDto) {
-  const userId = req.user.userId; 
-  return this.favoritesService.removeFavorite({ ...dto, userId });
-}
-
+  @Delete()
+  async removeFavorite(@Req() req: any, @Body() dto: RemoveFavoriteDto) {
+    const userId = req.user.userId;
+    return this.favoritesService.removeFavorite({ ...dto, userId });
+  }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('me')
@@ -30,12 +38,10 @@ async removeFavorite(@Req() req: any, @Body() dto: RemoveFavoriteDto) {
     return this.favoritesService.getUserFavorites(req.user.userId);
   }
 
-
   @UseGuards(AuthGuard('jwt'))
-@Post('check')
-async isMovieInFavorites(@Req() req: any, @Body() dto: CheckFavoriteDto) {
-  const userId = req.user.userId; // ← достаём из JWT
-  return this.favoritesService.isMovieInFavorites({ ...dto, userId });
-}
-
+  @Post('check')
+  async isMovieInFavorites(@Req() req: any, @Body() dto: CheckFavoriteDto) {
+    const userId = req.user.userId; // ← достаём из JWT
+    return this.favoritesService.isMovieInFavorites({ ...dto, userId });
+  }
 }

@@ -1,18 +1,39 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import { CreateActorDto } from '../dto/create-actor.dto';
 import { UpdateActorDto } from '../dto/update-actor.dto';
 import { CacheService, CACHE_KEYS, CACHE_TTL } from './cache.service';
+import { ActionLogService } from './action-log.service';
+import { SessionService } from './session.service';
+import { UserActionType } from '../database/models/ActionLogMongo';
 
 @Injectable()
-export class ActorsService {
+export class ActorsService implements OnModuleInit {
   constructor(
     @Inject('DB') private readonly db: any,
     private readonly cacheService: CacheService,
+    private readonly actionLogService?: ActionLogService,
+    private readonly sessionService?: SessionService,
   ) {}
 
+  async onModuleInit() {
+    if (this.sessionService) {
+      this.sessionService.subscribe('actor_deleted', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 ActorsService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.invalidateActorsCache();
+      });
+
+      this.sessionService.subscribe('actor_created', async (message) => {
+        const data = JSON.parse(message);
+        console.log(`📥 ActorsService: Получено событие ${data.eventType}`, data.data);
+        await this.cacheService.invalidateActorsCache();
+      });
+    }
+  }
+
   // --- CREATE ---
-  async createActor(dto: CreateActorDto) {
+  async createActor(dto: CreateActorDto, userId?: number) {
     const result = await this.db.execute(sql`
       INSERT INTO "Actor"."actors" (first_name, last_name, birth_date, biography)
       VALUES (${dto.firstName}, ${dto.lastName}, ${dto.birthDate}, ${dto.biography})
@@ -20,11 +41,28 @@ export class ActorsService {
     `);
 
     await this.cacheService.invalidateActorsCache();
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        userId,
+        UserActionType.CREATE,
+        `Создан актёр: ${dto.firstName} ${dto.lastName}`,
+        { actorId: result.rows[0]?.id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('actor_created', {
+        actorId: result.rows[0]?.id,
+        name: `${dto.firstName} ${dto.lastName}`,
+      });
+    }
+
     return result.rows[0];
   }
 
   // --- UPDATE ---
-  async updateActor(id: number, dto: UpdateActorDto) {
+  async updateActor(id: number, dto: UpdateActorDto, userId?: number) {
     const result = await this.db.execute(sql`
       UPDATE "Actor"."actors"
       SET 
@@ -40,11 +78,28 @@ export class ActorsService {
       throw new NotFoundException(`Actor ${id} not found`);
 
     await this.cacheService.invalidateActorsCache();
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        userId,
+        UserActionType.UPDATE,
+        `Обновлён актёр: ${result.rows[0].firstName} ${result.rows[0].lastName}`,
+        { actorId: id, ...dto },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('actor_updated', {
+        actorId: id,
+        name: `${result.rows[0].firstName} ${result.rows[0].lastName}`,
+      });
+    }
+
     return result.rows[0];
   }
 
   // --- DELETE ---
-  async deleteActor(id: number) {
+  async deleteActor(id: number, userId?: number) {
     const result = await this.db.execute(sql`
       DELETE FROM "Actor"."actors"
       WHERE id = ${id}
@@ -55,6 +110,20 @@ export class ActorsService {
       throw new NotFoundException(`Actor ${id} not found`);
 
     await this.cacheService.invalidateActorsCache();
+
+    if (this.actionLogService) {
+      await this.actionLogService.logUserAction(
+        userId,
+        UserActionType.DELETE,
+        `Удалён актёр: ${result.rows[0].firstName} ${result.rows[0].lastName}`,
+        { actorId: id },
+      );
+    }
+
+    if (this.sessionService) {
+      await this.sessionService.publishChange('actor_deleted', { actorId: id });
+    }
+
     return result.rows[0];
   }
 

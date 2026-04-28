@@ -2,15 +2,20 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import { AllExceptionsFilter } from './filters/all-exceptions.filter';
+import { ActionLogService } from './services/action-log.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(cookieParser());
   app.enableCors({
-    origin: 'http://localhost:5173',
+    origin: true,
     credentials: true,
   });
+
+  const actionLogService = app.get(ActionLogService);
+  app.useGlobalFilters(new AllExceptionsFilter(actionLogService));
 
   // ✅ Swagger конфигурация
   const config = new DocumentBuilder()
@@ -18,7 +23,7 @@ async function bootstrap() {
     .setDescription('Документация REST API для онлайн-кинотеатра')
     .setVersion('1.0')
     .addCookieAuth('access_token') // если используешь httpOnly cookie
-    .addBearerAuth() 
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
@@ -32,8 +37,6 @@ async function bootstrap() {
   console.log(`📘 Swagger доступен на http://localhost:${port}/api`);
 }
 bootstrap();
-
-
 
 /*{
   "login": "vbvbvbvbbv",
